@@ -418,6 +418,147 @@ var Visual = (function () {
     el.innerHTML = '<div class="tebak">' + M.map(function (m, i) { return '<button class="tk" data-i="' + i + '"><b>' + m[0] + '</b><span>klik untuk menebak</span></button>'; }).join("") + '</div><p class="small center">Tebak dulu dalam hati, lalu klik kartunya.</p>';
     $$(el, ".tk").forEach(function (b) { b.onclick = function () { var m = M[+b.dataset.i]; b.style.background = warna[m[1]]; b.querySelector("span").textContent = m[1]; b.classList.add("buka"); }; });
   };
+  /* =================== ANIMASI MATERI 3: DIODA =================== */
+  // simbol dioda horizontal antara x1..x2 di y; arah 1 = anoda kiri (menunjuk kanan), -1 = menunjuk kiri
+  function diodaH(x1, x2, y, arah, warna) {
+    var c = warna || INK, m = (x1 + x2) / 2, s = line(x1, y, m - 12, y, c) + line(m + 12, y, x2, y, c);
+    if (arah >= 0) s += '<polygon points="' + (m - 12) + "," + (y - 11) + " " + (m - 12) + "," + (y + 11) + " " + (m + 10) + "," + y + '" fill="' + c + '"/>' + line(m + 11, y - 12, m + 11, y + 12, c, 3);
+    else s += '<polygon points="' + (m + 12) + "," + (y - 11) + " " + (m + 12) + "," + (y + 11) + " " + (m - 10) + "," + y + '" fill="' + c + '"/>' + line(m - 11, y - 12, m - 11, y + 12, c, 3);
+    return s;
+  }
+  function batTopP(x, y1, y2, label, plusAtas) {   // baterai vertikal; plusAtas=false membalik polaritas
+    var m = (y1 + y2) / 2, s = '<rect x="' + (x - 18) + '" y="' + (m - 14) + '" width="36" height="28" fill="#fffdf6"/>' + line(x, y1, x, m - 8) + line(x, m + 8, x, y2);
+    if (plusAtas !== false) s += line(x - 14, m - 8, x + 14, m - 8, INK, 2.6) + line(x - 7, m + 2, x + 7, m + 2, INK, 4) + txt(x - 20, m - 10, "+", { size: 13, b: 1 });
+    else s += line(x - 7, m - 6, x + 7, m - 6, INK, 4) + line(x - 14, m + 4, x + 14, m + 4, INK, 2.6) + txt(x - 20, m + 18, "+", { size: 13, b: 1 });
+    return s + (label ? txt(x + 20, m + 5, label, { a: "start", b: 1 }) : "");
+  }
+  function rangkaianDioda(V, R, arah, opt) {
+    opt = opt || {}; var n = opt.n || 1, s = "";
+    s += line(40, 30, 90, 30) + resH(90, 170, 30) + txt(130, 18, "R = " + fR(R), { b: 1, size: 11 });
+    var x0 = 170, w = n === 2 ? 62 : 110;
+    for (var k = 0; k < n; k++) s += diodaH(x0 + k * w, x0 + (k + 1) * w, 30, arah === "mundur" ? -1 : 1);
+    var xe = x0 + n * w;
+    if (opt.led) s += arrow(xe - 48, 8, xe - 36, -4 + 8, "#d97706") + arrow(xe - 40, 12, xe - 28, 0 + 4, "#d97706");
+    s += line(xe, 30, 300, 30) + line(300, 30, 300, 170) + line(40, 170, 300, 170) + batTopP(40, 30, 170, V == null ? "" : f(V) + " V", true);
+    s += txt(x0 + 12, 58, arah === "mundur" ? "K" : "A", { size: 10, c: MUT }) + txt(xe - 12, 58, arah === "mundur" ? "A" : "K", { size: 10, c: MUT });
+    return svg(340, 190, s);
+  }
+  G.rdioda = function (p) { return rangkaianDioda(p.V, p.R, p.arah || "maju"); };
+  G.d2seri = function (p) { return rangkaianDioda(p.V, p.R, "maju", { n: 2 }); };
+  G.led = function (p) { return rangkaianDioda(p.V, p.R === "?" ? "?" : p.R, "maju", { led: 1 }); };
+  G.fisikdioda = function () {
+    var s = line(20, 60, 90, 60, "#9aa5a0", 4) + line(250, 60, 320, 60, "#9aa5a0", 4) + '<rect x="90" y="40" width="160" height="40" rx="8" fill="#2b2b2b"/><rect x="215" y="40" width="16" height="40" fill="#d9d9d9"/>';
+    s += txt(55, 90, "Anoda (A)", { size: 11 }) + txt(285, 90, "Katode (K)", { size: 11 }) + txt(223, 32, "pita = katode", { size: 10.5, c: COP, b: 1 }) + txt(170, 64, "1N4007", { size: 11, c: "#ddd" });
+    s += diodaH(110, 230, 125, 1) + txt(120, 150, "A", { size: 11 }) + txt(222, 150, "K", { size: 11 });
+    return svg(340, 160, s);
+  };
+  G.bandingmodel = function (p) {
+    var v = [p.a, p.b, p.c], nm = ["Ideal", "Praktis", "Lengkap"], mx = Math.max.apply(null, v) * 1.15, s = axes(50, 170, 260, 140, "", "I_F (mA)");
+    v.forEach(function (x, i) { var h = x / mx * 140, X = 75 + i * 85; s += '<rect x="' + X + '" y="' + (170 - h) + '" width="50" height="' + h + '" fill="' + [BLU, COP, GRN][i] + '"/>' + txt(X + 25, 164 - h, f(x, 2), { size: 11, b: 1 }) + txt(X + 25, 186, nm[i], { size: 11 }); });
+    return svg(340, 195, s);
+  };
+  // kurva Shockley sederhana: Is = 1e-9 A, n·VT = 0,0468 V
+  var IS = 1e-9, NVT = 0.0468;
+  function titikKerja(V, R) { if (V <= 0) return { vd: V, i: 0 }; var lo = 0, hi = Math.min(V, 1.2); for (var k = 0; k < 60; k++) { var m = (lo + hi) / 2, fx = IS * (Math.exp(m / NVT) - 1) - (V - m) / R; if (fx > 0) hi = m; else lo = m; } var vd = (lo + hi) / 2; return { vd: vd, i: (V - vd) / R }; }
+  A.kurvavi = function (el) {
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 230"><g class="g"></g></svg><div class="readout kr"></div><div class="ctrl">' + slider("V_BIAS", 0, 10, 0.1, 3, "V") + slider("R", 220, 2200, 10, 470, "Ω") + "</div>";
+    var ins = $$(el, "input"), x0 = 50, y0 = 200, W = 260, H = 170, Vm = 1, Im = 20;
+    var base = axes(x0, y0, W, H, "V_F (V)", "I_F (mA)"), pts = [];
+    for (var v = 0; v <= 0.84; v += 0.005) { var i = IS * (Math.exp(v / NVT) - 1) * 1000; if (i > Im) break; pts.push((x0 + v / Vm * W) + "," + (y0 - i / Im * H)); }
+    for (var t = 0.2; t <= 1; t += 0.2) base += line(x0 + t * W, y0, x0 + t * W, y0 - H, "#e3e8e5", 1) + txt(x0 + t * W, y0 + 14, f(t, 1), { size: 10, c: MUT });
+    for (var a = 5; a <= 20; a += 5) base += line(x0, y0 - a / Im * H, x0 + W, y0 - a / Im * H, "#e3e8e5", 1) + txt(x0 - 6, y0 - a / Im * H + 4, a, { size: 10, c: MUT, a: "end" });
+    base += line(x0 + 0.7 * W, y0, x0 + 0.7 * W, y0 - H, RED, 1).replace("/>", ' stroke-dasharray="4 4"/>') + txt(x0 + 0.7 * W + 4, y0 - H + 10, "≈0,7 V (lutut)", { a: "start", size: 10, c: RED }) + poly(pts.join(" "), COP, 2.8);
+    function upd() {
+      var V = +ins[0].value, R = +ins[1].value, tk = titikKerja(V, R), mA = tk.i * 1000;
+      $$(el, ".val")[0].textContent = f(V, 1); $$(el, ".val")[1].textContent = R;
+      var px = x0 + Math.min(tk.vd, Vm) / Vm * W, py = y0 - Math.min(mA, Im) / Im * H;
+      el.querySelector(".g").innerHTML = base + '<circle cx="' + px + '" cy="' + py + '" r="6" fill="' + RED + '" stroke="#fff" stroke-width="2"/>';
+      el.querySelector(".kr").innerHTML = "V<sub>F</sub> = <b>" + f(tk.vd, 3) + " V</b> · I<sub>F</sub> = <b>" + f(mA, 2) + " mA</b>" + (mA > Im ? " (di luar grafik)" : "") + " · praktis: (V−0,7)/R = " + (V > 0.7 ? f((V - 0.7) / R * 1000, 2) + " mA" : "0");
+    }
+    ins.forEach(function (i) { i.addEventListener("input", upd); }); upd();
+  };
+  A.kurvalengkap = function (el) {
+    var zona = "maju";
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 250"><g class="g"></g></svg><div class="readout zr"></div><div class="ctrl">' + [["maju", "Konduksi maju"], ["blokir", "Daerah blokir"], ["bd", "Breakdown"]].map(function (z) { return '<button class="btn sm ghost" data-z="' + z[0] + '">' + z[1] + "</button>"; }).join("") + "</div>";
+    var info = { maju: "V<sub>F</sub> ≥ ± 0,7 V: arus maju besar (skala mA). Kurva sangat curam.", blokir: "Antara −V<sub>BR</sub> dan ± 0,7 V: hanya arus bocor sangat kecil (skala µA/nA).", bd: "V<sub>R</sub> ≥ V<sub>BR</sub>: arus balik melonjak. Tanpa pembatas arus, dioda rusak karena panas." };
+    function draw() {
+      var cx = 230, cy = 125, s = "";
+      var hl = { maju: [cx + 40, 20, 80, 105], blokir: [60, 105, cx + 45 - 60, 40], bd: [20, 125, 45, 110] }[zona];
+      s += '<rect x="' + hl[0] + '" y="' + hl[1] + '" width="' + hl[2] + '" height="' + hl[3] + '" fill="#f6e7d8" rx="6"/>';
+      s += arrow(15, cy, 330, cy, INK) + arrow(cx, 235, cx, 10, INK) + txt(326, cy - 8, "V", { a: "end", size: 11 }) + txt(cx + 6, 18, "I_F", { a: "start", size: 11 }) + txt(cx + 6, 240, "I_R", { a: "start", size: 11 });
+      s += txt(cx + 50, cy + 16, "0,7 V", { size: 10, c: MUT }) + txt(40, cy - 8, "−V_BR", { size: 10, c: MUT });
+      var p = "M42 235 C 44 180, 46 140, 50 130 L " + (cx - 2) + " 127 L " + (cx + 40) + " 125 C " + (cx + 55) + " 122, " + (cx + 62) + " 90, " + (cx + 70) + " 20";
+      s += '<path d="' + p + '" fill="none" stroke="' + COP + '" stroke-width="3"/>';
+      s += txt(cx + 72, 60, "maju", { a: "start", size: 10.5, c: COP, b: 1 }) + txt(135, 118, "blokir (bocor)", { size: 10.5, c: COP, b: 1 }) + txt(62, 200, "breakdown", { a: "start", size: 10.5, c: COP, b: 1 });
+      s += txt(cx - 20, 150, "skala µA", { size: 9.5, c: MUT, a: "end" }) + txt(cx + 8, 40, "skala mA", { size: 9.5, c: MUT, a: "start" });
+      el.querySelector(".g").innerHTML = s; el.querySelector(".zr").innerHTML = info[zona];
+      $$(el, "[data-z]").forEach(function (b) { b.classList.toggle("on", b.dataset.z === zona); });
+    }
+    $$(el, "[data-z]").forEach(function (b) { b.onclick = function () { zona = b.dataset.z; draw(); }; }); draw();
+  };
+  A.dioda = function (el) {
+    var model = "praktis";
+    el.innerHTML = '<div class="g"></div><div class="ctrl">' + [["ideal", "Ideal"], ["praktis", "Praktis"], ["lengkap", "Lengkap"]].map(function (m) { return '<button class="btn sm ghost" data-m="' + m[0] + '">' + m[1] + "</button>"; }).join("") + "</div>" +
+      '<div class="ctrl">' + slider("V_BIAS", -20, 20, 0.5, 10, "V") + slider("R_LIMIT", 100, 4700, 10, 1000, "Ω") + "</div>" + '<table class="tabel small dr" style="margin:6px 0 0"></table>';
+    var ins = $$(el, "input"), rd = 10;
+    function upd() {
+      var V = +ins[0].value, R = +ins[1].value, maju = V >= 0, s = "";
+      $$(el, ".val")[0].textContent = f(V, 1); $$(el, ".val")[1].textContent = R;
+      var aV = Math.abs(V), I = 0, VD = 0, ket;
+      if (maju) {
+        if (model === "ideal") { I = aV / R; VD = 0; }
+        else if (aV > 0.7) { I = (aV - 0.7) / (R + (model === "lengkap" ? rd : 0)); VD = 0.7 + (model === "lengkap" ? I * rd : 0); }
+        else { I = 0; VD = aV; }
+        ket = I > 0 ? "Bias maju: dioda ON." : "Bias maju, tetapi V<sub>BIAS</sub> belum melewati 0,7 V: dioda belum menghantar.";
+      } else { I = model === "lengkap" ? 1e-6 : 0; VD = aV - I * R; ket = "Bias mundur: dioda OFF, hampir seluruh tegangan jatuh pada dioda."; }
+      var g = rangkaianDioda(null, R, maju ? "maju" : "mundur").replace('viewBox="0 0 340 190"', 'viewBox="0 0 340 200"');
+      g = g.replace("</svg>", txt(62, 105, (maju ? "" : "−") + f(aV, 1) + " V", { a: "start", b: 1 }) + (I > 0 && maju ? txt(170, 120, "→ I_F", { size: 12, c: BLU, b: 1 }) : "") + "</svg>");
+      el.querySelector(".g").innerHTML = g;
+      var mA = I * 1000, ua = I * 1e6;
+      el.querySelector(".dr").innerHTML = "<tr><th>Model " + model + "</th><th>Nilai</th></tr>" +
+        "<tr><td>" + (maju ? "Arus maju I<sub>F</sub>" : "Arus balik I<sub>R</sub>") + "</td><td><b>" + (maju ? f(mA, 3) + " mA" : f(ua, 2) + " µA") + "</b></td></tr>" +
+        "<tr><td>" + (maju ? "Tegangan dioda V<sub>F</sub>" : "Tegangan dioda V<sub>R</sub>") + "</td><td><b>" + f(VD, 3) + " V</b></td></tr>" +
+        "<tr><td>Tegangan R<sub>LIMIT</sub></td><td><b>" + f(I * R, 3) + " V</b></td></tr><tr><td colspan=2>" + ket + (model === "lengkap" ? " (r<sub>d</sub>′ = 10 Ω, I<sub>R</sub> = 1 µA)" : "") + "</td></tr>";
+      $$(el, "[data-m]").forEach(function (b) { b.classList.toggle("on", b.dataset.m === model); });
+    }
+    $$(el, "[data-m]").forEach(function (b) { b.onclick = function () { model = b.dataset.m; upd(); }; });
+    ins.forEach(function (i) { i.addEventListener("input", upd); }); upd();
+  };
+  A.ujidioda = function (el) {
+    var st = { d: "baik", p: "AK" };
+    el.innerHTML = '<div class="mm"><div class="mm-face"><div class="mm-lcd">----</div><div class="small center" style="color:#1b261e;font-weight:700">Mode dioda ▷|</div></div><div class="mm-cfg"><p class="small"><b>Kondisi dioda:</b></p><div class="seg" data-g="d"><button data-v="baik">Baik</button><button data-v="putus">Putus</button><button data-v="short">Hubung singkat</button></div><p class="small"><b>Pemasangan probe:</b></p><div class="seg" data-g="p"><button data-v="AK">Merah ke A, hitam ke K</button><button data-v="KA">Merah ke K, hitam ke A</button></div></div></div><svg class="diag" viewBox="0 0 340 90"><g class="g"></g></svg><div class="mm-msg"></div>';
+    function upd() {
+      var r = st.d === "baik" ? (st.p === "AK" ? "0.62" : "OL") : st.d === "putus" ? "OL" : "0.00";
+      el.querySelector(".mm-lcd").textContent = r;
+      var merahKiri = st.p === "AK";
+      el.querySelector(".g").innerHTML = diodaH(90, 250, 45, 1) + txt(100, 30, "A", { size: 11 }) + txt(240, 30, "K", { size: 11 }) + '<circle cx="70" cy="45" r="9" fill="' + (merahKiri ? RED : "#222") + '"/><circle cx="270" cy="45" r="9" fill="' + (merahKiri ? "#222" : RED) + '"/>' + txt(70, 75, merahKiri ? "merah" : "hitam", { size: 10 }) + txt(270, 75, merahKiri ? "hitam" : "merah", { size: 10 });
+      var m = el.querySelector(".mm-msg");
+      if (st.d === "baik") { m.className = "mm-msg ok"; m.textContent = st.p === "AK" ? "Bias maju dari baterai meter: terbaca ± 0,5–0,7 V (silikon). Balik probe untuk memastikan OL." : "Bias mundur: OL (tak hingga). Satu arah terbaca, satu arah OL → dioda BAIK."; }
+      else if (st.d === "putus") { m.className = "mm-msg bad"; m.textContent = "OL di kedua arah → dioda PUTUS (terbuka)."; }
+      else { m.className = "mm-msg bad"; m.textContent = "Mendekati 0 di kedua arah → dioda HUBUNG SINGKAT."; }
+      $$(el, ".seg").forEach(function (g) { $$(g, "button").forEach(function (b) { b.classList.toggle("on", st[g.dataset.g] === b.dataset.v); }); });
+    }
+    $$(el, ".seg").forEach(function (g) { $$(g, "button").forEach(function (b) { b.onclick = function () { st[g.dataset.g] = b.dataset.v; upd(); }; }); }); upd();
+  };
+  A.penyearah = function (el) {
+    var model = "praktis";
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 210"><g class="g"></g></svg><div class="readout pr"></div><div class="ctrl"><button class="btn sm ghost" data-m="ideal">Ideal</button><button class="btn sm ghost" data-m="praktis">Praktis</button>' + slider("V_p masuk", 2, 20, 0.5, 10, "V") + "</div>";
+    var sl = el.querySelector("input");
+    function upd() {
+      var Vp = +sl.value, vd = model === "ideal" ? 0 : 0.7, x0 = 40, y0 = 105, W = 285, A = 85, sc = A / 20, pin = [], pout = [];
+      $$(el, ".val")[0].textContent = f(Vp, 1);
+      for (var k = 0; k <= 200; k++) { var th = k / 200 * 4 * Math.PI, vi = Vp * Math.sin(th), vo = Math.max(0, vi - vd); pin.push((x0 + k / 200 * W) + "," + (y0 - vi * sc)); pout.push((x0 + k / 200 * W) + "," + (y0 - vo * sc)); }
+      var s = arrow(x0, y0, x0 + W + 10, y0, INK) + arrow(x0, 200, x0, 12, INK) + txt(x0 + W + 12, y0 + 4, "t", { a: "start", size: 11 }) + txt(x0 - 4, 14, "V", { size: 11, a: "end" });
+      s += poly(pin.join(" "), "#9aa5a0", 1.8).replace("/>", ' stroke-dasharray="5 4"/>') + poly(pout.join(" "), COP, 3);
+      s += txt(x0 + 8, y0 - Vp * sc - 6, "V_in", { a: "start", size: 10.5, c: MUT }) + txt(x0 + 60, y0 - (Vp - vd) * sc - 6, "V_out", { a: "start", size: 10.5, c: COP, b: 1 });
+      el.querySelector(".g").innerHTML = s;
+      var vpo = Math.max(0, Vp - vd);
+      el.querySelector(".pr").innerHTML = "V<sub>p(out)</sub> = " + f(Vp, 1) + " − " + f(vd, 1) + " = <b>" + f(vpo, 2) + " V</b> · V<sub>rata-rata</sub> = V<sub>p(out)</sub>/π = <b>" + f(vpo / Math.PI, 2) + " V</b> · PIV = V<sub>p</sub> = <b>" + f(Vp, 1) + " V</b>";
+      $$(el, "[data-m]").forEach(function (b) { b.classList.toggle("on", b.dataset.m === model); });
+    }
+    $$(el, "[data-m]").forEach(function (b) { b.onclick = function () { model = b.dataset.m; upd(); }; });
+    sl.addEventListener("input", upd); upd();
+  };
   function mount(root) { $$(root, "[data-anim]").forEach(function (el) { var fn = A[el.dataset.anim]; if (fn && !el.dataset.on) { el.dataset.on = 1; el.classList.add("anim"); try { fn(el); } catch (e) { el.textContent = "(animasi gagal dimuat: " + e.message + ")"; } } }); }
   return { gambar: gambar, mount: mount, parseSpec: parseSpec, fR: fR };
 })();
