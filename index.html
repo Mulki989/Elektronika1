@@ -40,6 +40,7 @@ sub,sup{font-size:.72em}
 .btn.copper{background:var(--copper)}
 .btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
 .btn.sm{padding:6px 12px;min-height:36px;font-size:14px}
+.tg-h{font-size:18px;margin:6px 0 10px}.tcard{background:var(--surface);border:1.5px solid var(--copper);border-radius:14px;padding:14px 16px;margin:0 0 12px}.tc-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.tg-list{max-height:200px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:6px 10px}.tg-list label{display:block;padding:4px 0}.tm-row{display:flex;justify-content:space-between;gap:10px;align-items:center;margin:8px 0}.tm-row select{max-width:60%}
 .notice{border:1px dashed var(--copper);background:var(--copper-soft);padding:10px 14px;border-radius:10px;font-size:14px;margin:0 0 14px}
 .err{color:var(--bad);font-weight:700;font-size:14px;min-height:1.4em}
 .muted{color:var(--muted)}
@@ -325,6 +326,7 @@ body.protect .opt,body.protect select,body.protect input,body.protect button{poi
     <div class="toprow"><button class="btn ghost sm" id="h-theme">Tema</button><button class="btn ghost sm" id="h-out">Keluar</button></div>
     <div id="h-demo" class="notice" hidden><b>Mode coba.</b> Aplikasi belum dihubungkan ke Google Sheet, jadi kemajuan dan nilai hanya tersimpan di peramban ini. Isi <span class="mono">API_URL</span> di index.html untuk mode kelas.</div>
     <div id="h-resume" class="notice" hidden></div>
+    <div id="h-tugas"></div>
     <div class="mlist" id="h-list"></div>
   </div>
 </section>
@@ -364,9 +366,9 @@ body.protect .opt,body.protect select,body.protect input,body.protect button{poi
 <div id="wm" class="wm" hidden></div>
 <div id="shield" class="shield" hidden><div class="box"><h2>Konten disembunyikan</h2><p class="muted">Jendela tidak aktif atau terdeteksi tombol tangkap layar. Konten ini dilindungi.</p><button class="btn copper" id="shield-ok">Tampilkan lagi</button></div></div>
 
-<script src="js/engine.js?v=20261109e"></script>
-<script src="js/visual.js?v=20261109e"></script>
-<script src="config.js?v=20261109e"></script>
+<script src="js/engine.js?v=20261109f"></script>
+<script src="js/visual.js?v=20261109f"></script>
+<script src="config.js?v=20261109f"></script>
 <script>
 /* =====================================================================
  * PENGATURAN ada di file config.js (API_URL dan nama folder audio).
@@ -594,6 +596,78 @@ function statusMateri(i) {
   let alasan = !ada ? "Materi sedang disiapkan" : !terbuka(d.kode) ? "Belum dibuka dosen" : !prevOk ? "Selesaikan ujian " + DAFTAR[i - 1].kode + " dulu" : "";
   return { d, p, buka, alasan, pct: p.n ? Math.min(100, Math.round((p.s || []).length / p.n * 100)) : 0 };
 }
+/* ---------- TUGAS (tidak memengaruhi alur materi/latihan/ujian) ---------- */
+const Tugas = {
+  data: null,
+  async muat() {
+    const box = $("#h-tugas"); if (!box) return;
+    if (DEMO || S.dosen) { box.innerHTML = ""; return; }
+    try { const r = await api("tugasSaya", {}, { tries: 2 }); if (!r.ok) throw new Error(r.pesan); this.data = r; this.render(); }
+    catch (e) { if (e.message !== "__sesi") box.innerHTML = ""; }
+  },
+  render() {
+    const box = $("#h-tugas"), d = this.data; if (!box || !d) return;
+    if (!d.tugas.length) { box.innerHTML = ""; return; }
+    box.innerHTML = `<h2 class="tg-h">Tugas</h2>` + d.tugas.map((t, i) => {
+      const k = t.kirim, st = k ? (k.status === "Terlambat" ? `<span class="tag no">Terkirim · terlambat</span>` : `<span class="tag ok">Terkirim ✓</span>`) : t.bisa ? `<span class="tag mid">Belum dikirim</span>` : `<span class="tag no">Belum dikirim · ditutup</span>`;
+      return `<article class="tcard"><div class="tc-top"><div><b>${esc(t.kode)} · ${esc(t.judul)}</b><div class="small muted">${t.kelompok ? "Kelompok maks " + t.maks + " orang" : "Individu"} · ${t.tenggat ? "Tenggat " + tgl(t.tenggat) : "Tenggat diumumkan dosen"} · ${esc(t.status)}</div></div>${st}</div>
+        ${k ? `<div class="small">Dikirim ${tgl(k.waktu)} oleh ${esc(k.oleh)} · versi ${k.versi}${t.kelompok ? " · " + esc(k.kodeKel) + ": " + k.anggota.map(a => esc(a.nama)).join(", ") : ""}${k.dinilai ? " · <b>sudah dinilai</b>" : ""}</div>` : ""}
+        <div class="bar-actions" style="justify-content:flex-start;margin-top:8px"><button class="btn sm ${k ? "ghost" : "copper"}" data-tg="${i}" ${t.bisa || k ? "" : "disabled"}>${k ? (t.bisa ? "Lihat / kirim ulang" : "Lihat") : "Kumpulkan"}</button>${k && t.teman && t.kelompok && k.anggota.length > 1 ? `<button class="btn sm ghost" data-tm="${i}">${t.temanSudah ? "Ubah penilaian teman" : "Nilai kontribusi teman"}</button>` : ""}</div></article>`;
+    }).join("");
+    $$("#h-tugas [data-tg]").forEach(b => b.onclick = () => this.buka(d.tugas[+b.dataset.tg]));
+    $$("#h-tugas [data-tm]").forEach(b => b.onclick = () => this.teman(d.tugas[+b.dataset.tm]));
+  },
+  buka(t) {
+    const d = this.data, k = t.kirim, pilih = new Set(k ? k.anggota.map(a => a.nim).filter(n => n !== S.profil.nim) : []);
+    const calon = d.kelas.filter(x => t.dipakai.indexOf(x.nim) < 0);
+    modal(`<h3>${esc(t.kode)} · ${esc(t.judul)}</h3>
+      <p class="small">${esc(t.petunjuk)}</p>
+      <p class="small muted">${t.tenggat ? "Tenggat: <b>" + tgl(t.tenggat) + "</b> · " : ""}${esc(t.status)}${t.cpmk ? " · Mengukur Sub-CPMK-" + esc(t.sub) + " (" + esc(t.cpmk) + "; " + esc(t.cpl) + ")" : ""}</p>
+      ${k ? `<div class="notice">Terkirim ${tgl(k.waktu)} oleh ${esc(k.oleh)} (versi ${k.versi}, ${esc(k.status)}).<br>File: ${esc(k.file)}${t.bisa ? "<br>Mengirim lagi akan menambah versi baru; versi lama tetap tersimpan." : ""}</div>` : ""}
+      ${t.bisa ? `${t.kelompok ? `<label class="small"><b>Anggota kelompok</b> (Anda + maks ${t.maks - 1} orang dari kelas ${esc(S.profil.kelas)})</label>
+        <input id="tg-cari" placeholder="Cari nama/NIM…" style="width:100%;margin:6px 0">
+        <div id="tg-list" class="tg-list">${calon.map(x => `<label><input type="checkbox" value="${esc(x.nim)}" ${pilih.has(x.nim) ? "checked" : ""}> ${esc(x.nama)} <span class="muted mono small">${esc(x.nim)}</span></label>`).join("") || `<div class="small muted">Belum ada teman sekelas lain yang terdaftar.</div>`}</div>` : ""}
+        <label class="small" style="display:block;margin-top:10px"><b>File</b> (maks ${t.maksMB} MB total, hingga 10 file)</label>
+        <input type="file" id="tg-file" multiple style="width:100%;margin:6px 0">
+        <div id="tg-msg" class="small"></div>
+        <div class="bar-actions"><button class="btn ghost" id="tg-batal">Tutup</button><button class="btn copper" id="tg-kirim">Kirim tugas</button></div>`
+        : `<div class="bar-actions"><button class="btn" id="tg-batal">Tutup</button></div>`}`, box => {
+      box.querySelector("#tg-batal").onclick = closeModal;
+      const cari = box.querySelector("#tg-cari");
+      if (cari) cari.oninput = () => $$("#tg-list label").forEach(l => l.hidden = !l.textContent.toLowerCase().includes(cari.value.toLowerCase()));
+      $$("#tg-list input").forEach(c => c.onchange = () => { if (c.checked) pilih.add(c.value); else pilih.delete(c.value); if (pilih.size > t.maks - 1) { c.checked = false; pilih.delete(c.value); toast("Maksimal " + t.maks + " orang per kelompok."); } });
+      const btn = box.querySelector("#tg-kirim"); if (!btn) return;
+      btn.onclick = async () => {
+        const fs = Array.from(box.querySelector("#tg-file").files || []), msg = box.querySelector("#tg-msg");
+        if (!fs.length) { msg.textContent = "Pilih file terlebih dahulu."; return; }
+        if (fs.length > 10) { msg.textContent = "Maksimal 10 file."; return; }
+        const total = fs.reduce((a, f) => a + f.size, 0);
+        if (total > t.maksMB * 1048576) { msg.textContent = "Ukuran total " + (total / 1048576).toFixed(1) + " MB melebihi batas " + t.maksMB + " MB."; return; }
+        btn.disabled = true; msg.textContent = "Mengunggah… jangan tutup halaman ini.";
+        try {
+          const files = await Promise.all(fs.map(f => new Promise((res, rej) => { const rd = new FileReader(); rd.onload = () => res({ nama: f.name, tipe: f.type || "application/octet-stream", data: String(rd.result).split(",")[1] || "" }); rd.onerror = rej; rd.readAsDataURL(f); })));
+          const r = await api("kirimTugas", { kode: t.kode, anggota: Array.from(pilih), files }, { tries: 1 });
+          if (!r.ok) throw new Error(r.pesan);
+          closeModal(); toast("Tugas terkirim ✓ (" + r.kodeKel + ", versi " + r.versi + ")", 4000); this.muat();
+        } catch (e) { msg.textContent = "Gagal: " + e.message; btn.disabled = false; }
+      };
+    });
+  },
+  teman(t) {
+    const lain = t.kirim.anggota.filter(a => a.nim !== S.profil.nim);
+    modal(`<h3>Kontribusi anggota · ${esc(t.kode)}</h3><p class="small">Penilaian ini <b>rahasia</b> (hanya dosen yang melihat) dan dipakai untuk menyesuaikan nilai individu (80–110% dari nilai kelompok).</p>
+      ${lain.map(a => `<div class="tm-row"><span>${esc(a.nama)}</span><select data-nim="${esc(a.nim)}"><option value="">Pilih…</option>${[5, 4, 3, 2, 1].map(v => `<option value="${v}">${v} · ${["", "Hampir tidak berkontribusi", "Kurang", "Cukup", "Baik", "Sangat aktif"][v]}</option>`).join("")}</select></div>`).join("")}
+      <div id="tm-msg" class="small"></div><div class="bar-actions"><button class="btn ghost" id="tm-batal">Batal</button><button class="btn copper" id="tm-kirim">Simpan</button></div>`, box => {
+      box.querySelector("#tm-batal").onclick = closeModal;
+      box.querySelector("#tm-kirim").onclick = async () => {
+        const skor = {}; let kurang = false; $$("[data-nim]", box).forEach(s => { if (!s.value) kurang = true; skor[s.dataset.nim] = +s.value; });
+        if (kurang) { box.querySelector("#tm-msg").textContent = "Beri skor untuk setiap anggota."; return; }
+        try { const r = await api("nilaiTeman", { kode: t.kode, skor }, { tries: 2 }); if (!r.ok) throw new Error(r.pesan); closeModal(); toast("Penilaian tersimpan ✓"); this.muat(); }
+        catch (e) { box.querySelector("#tm-msg").textContent = "Gagal: " + e.message; }
+      };
+    });
+  }
+};
 function home() {
   if (S.dosen) return homeDosen();
   Lindung.off(); Narator.stop(); show("v-home"); location.hash = "";
@@ -622,10 +696,12 @@ function home() {
   const pct = Math.round(total / DAFTAR.length * 100);
   $("#h-pct").textContent = pct + "%"; $("#h-bar").style.width = pct + "%";
   $("#h-sub").textContent = DAFTAR.filter(d => (S.progres[d.kode] || {}).ujOk).length + " dari " + DAFTAR.length + " materi tuntas";
+  Tugas.muat();
   $$("#h-list [data-go]").forEach(b => b.onclick = () => { const k = b.dataset.k; if (b.dataset.go === "materi") bukaMateri(k); else if (b.dataset.go === "latihan") latihan(k); else ujianIntro(k); });
 }
 $("#h-out").onclick = () => { if (confirm("Keluar dari akun ini?")) { kirimProgres(); keluar(); } };
 function homeDosen() {
+  if ($("#h-tugas")) $("#h-tugas").innerHTML = "";
   Lindung.off(); Narator.stop(); show("v-home"); location.hash = "";
   $("#h-sem").textContent = "Semester " + S.setelan.semester;
   $("#h-who").innerHTML = '<span class="dosen-badge">MODE DOSEN</span> ' + esc(S.dosen.nama) + " · aktivitas tidak tercatat";
