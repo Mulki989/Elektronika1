@@ -559,6 +559,138 @@ var Visual = (function () {
     $$(el, "[data-m]").forEach(function (b) { b.onclick = function () { model = b.dataset.m; upd(); }; });
     sl.addEventListener("input", upd); upd();
   };
+  /* =================== ANIMASI MATERI 4: CATU DAYA =================== */
+  function trafoSVG(x, y1, y2, ct) {   // lilitan primer (kiri) & sekunder (kanan) di x..x+40
+    var s = "", n = 5, h = (y2 - y1) / n;
+    for (var i = 0; i < n; i++) { s += '<path d="M' + x + " " + (y1 + i * h) + " a" + (h / 2) + " " + (h / 2) + " 0 0 1 0 " + h + '" fill="none" stroke="' + COP + '" stroke-width="2"/>'; s += '<path d="M' + (x + 30) + " " + (y1 + i * h) + " a" + (h / 2) + " " + (h / 2) + " 0 0 0 0 " + h + '" fill="none" stroke="' + COP + '" stroke-width="2"/>'; }
+    s += line(x + 12, y1, x + 12, y2, "#7d8a84", 2) + line(x + 18, y1, x + 18, y2, "#7d8a84", 2);
+    if (ct) s += dot(x + 30, (y1 + y2) / 2);
+    return s;
+  }
+  function hopV(x, y1, yc, y2) { return line(x, y1, x, yc - 7) + '<path d="M' + x + " " + (yc - 7) + " a7 7 0 0 0 0 14\" fill=\"none\" stroke=\"" + INK + '" stroke-width="2.2"/>' + line(x, yc + 7, x, y2); }
+  function rectCircuit(mode, fase, opt) {   // fase: 1 = setengah positif, -1 = negatif, 0 = netral
+    opt = opt || {};
+    var on = function (k) { return fase === 0 ? INK : (k ? COP : "#c7cfca"); }, s = "";
+    s += txt(20, 12, "AC", { size: 10, a: "start", c: MUT }) + '<circle cx="22" cy="100" r="14" fill="#fff" stroke="' + INK + '" stroke-width="2"/><path d="M13 100 q4.5 -9 9 0 t9 0" fill="none" stroke="' + INK + '" stroke-width="1.8"/>' + line(22, 86, 22, 40) + line(22, 40, 60, 40) + line(22, 114, 22, 160) + line(22, 160, 60, 160);
+    s += trafoSVG(60, 40, 160, mode === "ct");
+    var xs = 90;
+    if (mode === "half") {
+      s += line(xs, 40, 140, 40) + diodaH(140, 210, 40, 1, on(fase > 0)) + line(210, 40, 290, 40) + line(290, 40, 290, 70) + resV(290, 70, 130) + line(290, 130, 290, 160) + line(xs, 160, 290, 160);
+      s += txt(150, 25, "D", { size: 10.5, c: MUT });
+    } else if (mode === "ct") {
+      s += line(xs, 40, 150, 40) + diodaH(150, 220, 40, 1, on(fase > 0)) + line(xs, 160, 150, 160) + diodaH(150, 220, 160, 1, on(fase < 0)) + line(220, 40, 250, 40) + line(220, 160, 250, 160) + line(250, 40, 250, 160) + dot(250, 100) + line(250, 100, 300, 100);
+      s += line(xs, 100, 120, 100) + hopV(120, 100, 160, 195) + line(120, 195, 320, 195) + line(300, 100, 320, 100) + resV(320, 100, 195);
+      s += txt(185, 25, "D1", { size: 10.5, c: MUT }) + txt(185, 182, "D2", { size: 10.5, c: MUT }) + txt(108, 96, "CT", { size: 9.5, c: MUT });
+    } else {
+      var T = [175, 52], Bn = [175, 148], R = [228, 100], L = [122, 100];
+      var dg = function (a, b, k, lab, lx, ly) { var mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, ang = Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI, c = on(k); return line(a[0], a[1], b[0], b[1], c, 2.2) + '<g transform="translate(' + mx + "," + my + ") rotate(" + ang + ')"><polygon points="-9,-9 -9,9 8,0" fill="' + c + '"/>' + line(9, -10, 9, 10, c, 3) + "</g>" + txt(lx, ly, lab, { size: 10, c: MUT }); };
+      s += line(xs, 40, 175, 40) + line(175, 40, 175, 52) + line(xs, 160, 175, 160) + line(175, 160, 175, 148);
+      s += dg(T, R, fase > 0, "D1", 214, 66) + dg(L, Bn, fase > 0, "D2", 136, 140) + dg(Bn, R, fase < 0, "D3", 214, 140) + dg(L, T, fase < 0, "D4", 136, 66);
+      s += line(228, 100, 320, 100) + resV(320, 100, 195) + line(320, 195, 122, 195) + hopV(122, 100, 160, 195);
+      s += dot(175, 52) + dot(175, 148) + dot(228, 100) + dot(122, 100) + txt(240, 92, "+", { size: 12, b: 1 }) + txt(110, 92, "−", { size: 12, b: 1 });
+    }
+    return s;
+  }
+  G.rect = function (p) { return svg(340, 205, rectCircuit(p.mode || "bridge", 0)); };
+  G.blokcatu = function () {
+    var bl = [["Trafo", "turunkan V", "AC rendah"], ["Penyearah", "dioda", "DC berdenyut"], ["Filter", "kapasitor", "DC + ripple"], ["Regulator", "zener / IC", "DC stabil"]], s = "";
+    bl.forEach(function (b, i) {
+      var x = 8 + i * 84; s += '<rect x="' + x + '" y="30" width="72" height="48" rx="8" fill="' + (i % 2 ? "#f6e7d8" : "#e3ecfb") + '" stroke="#9aa5a0"/>' + txt(x + 36, 50, b[0], { size: 11, b: 1 }) + txt(x + 36, 66, b[1], { size: 9.5, c: MUT });
+      if (i < 3) s += arrow(x + 73, 54, x + 83, 54, INK);
+      var wy = 112, pts = [];
+      for (var k = 0; k <= 40; k++) { var t = k / 40 * 4 * Math.PI, v = Math.sin(t); var y = i === 0 ? v : i === 1 ? Math.abs(v) : i === 2 ? 0.85 + 0.12 * Math.abs(Math.sin(t)) : 0.9; pts.push((x + 4 + k * 1.6) + "," + (wy - y * 18 + (i === 0 ? 0 : 9))); }
+      s += poly(pts.join(" "), i === 3 ? GRN : COP, 1.8) + txt(x + 36, 146, b[2], { size: 8.6, c: MUT });
+    });
+    return svg(340, 155, s);
+  };
+  G.zenerkurva = function () {
+    var cx = 230, cy = 70, s = arrow(20, cy, 330, cy, INK) + arrow(cx, 165, cx, 10, INK) + txt(326, cy - 6, "V", { size: 11, a: "end" }) + txt(cx + 6, 18, "I", { size: 11, a: "start" });
+    s += '<path d="M' + (cx + 40) + ' 10 C ' + (cx + 34) + ' 60, ' + (cx + 28) + ' 68, ' + cx + ' 70 L 90 71 C 80 72, 78 90, 76 165" fill="none" stroke="' + COP + '" stroke-width="3"/>';
+    s += line(76, cy, 76, 165, RED, 1).replace("/>", ' stroke-dasharray="4 3"/>') + txt(72, 84, "−V_Z", { size: 10.5, c: RED, a: "end", b: 1 }) + txt(84, 150, "daerah kerja zener", { size: 10, c: COP, a: "start" }) + txt(84, 162, "(V hampir tetap)", { size: 9.5, c: MUT, a: "start" }) + txt(cx + 46, 40, "maju ±0,7 V", { size: 9.5, c: MUT, a: "start" });
+    return svg(340, 175, s);
+  };
+  A.penyearah2 = function (el) {
+    var mode = el.dataset.mode || "bridge", Vrms = 12, t = 0, play = true;
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 205"><g class="c"></g></svg><svg class="diag" viewBox="0 0 340 120"><g class="w"></g></svg><div class="readout rr"></div><div class="ctrl">' + [["half", "Setengah gelombang"], ["ct", "Center-tap"], ["bridge", "Bridge"]].map(function (m) { return '<button class="btn sm ghost" data-m="' + m[0] + '">' + m[1] + "</button>"; }).join("") + '<button class="btn sm ghost" data-a="p">❚❚</button>' + slider("V sekunder", 6, 24, 1, Vrms, "V rms") + "</div>";
+    var sl = el.querySelector("input");
+    function info() {
+      var Vp = Vrms * Math.SQRT2, vo, piv, fd, nd;
+      if (mode === "half") { vo = Vp - 0.7; piv = Vp; fd = 50; nd = "1 dioda"; }
+      else if (mode === "ct") { vo = Vp - 0.7; piv = 2 * vo + 0.7; fd = 100; nd = "2 dioda (sekunder " + Vrms + "-0-" + Vrms + " V)"; }
+      else { vo = Vp - 1.4; piv = vo + 0.7; fd = 100; nd = "4 dioda"; }
+      el.querySelector(".rr").innerHTML = nd + " · V<sub>p(sek)</sub> = " + Vrms + "×√2 = " + f(Vp, 2) + " V · V<sub>p(out)</sub> = <b>" + f(vo, 2) + " V</b> · V<sub>avg</sub> = <b>" + f((mode === "half" ? 1 : 2) * vo / Math.PI, 2) + " V</b> · denyut " + fd + " Hz · PIV = " + f(piv, 1) + " V";
+      $$(el, "[data-m]").forEach(function (b) { b.classList.toggle("on", b.dataset.m === mode); });
+      return { Vp: Vp, vo: vo };
+    }
+    var I = info();
+    function draw() {
+      var ph = (t % 1), fase = ph < 0.5 ? 1 : -1;
+      el.querySelector(".c").innerHTML = rectCircuit(mode, fase);
+      var x0 = 20, y0 = 60, W = 300, A = 45, pin = [], pout = [];
+      for (var k = 0; k <= 160; k++) { var th = k / 160 * 4 * Math.PI, vi = Math.sin(th), vo = mode === "half" ? Math.max(0, vi) : Math.abs(vi); vo = Math.max(0, vo - (mode === "bridge" ? 1.4 : 0.7) / I.Vp); pin.push((x0 + k / 160 * W) + "," + (y0 - vi * A)); pout.push((x0 + k / 160 * W) + "," + (y0 - vo * A)); }
+      var cx = x0 + (t % 2) / 2 * W;
+      el.querySelector(".w").innerHTML = line(x0, y0, x0 + W, y0, "#c7cfca", 1) + poly(pin.join(" "), "#9aa5a0", 1.6).replace("/>", ' stroke-dasharray="5 4"/>') + poly(pout.join(" "), COP, 2.8) + line(cx, 8, cx, 112, RED, 1.4) + txt(x0 + 2, 12, "V_in (putus-putus) · V_out (tembaga)", { a: "start", size: 9.5, c: MUT }) + txt(cx + 4, 112, fase > 0 ? "siklus +" : "siklus −", { a: "start", size: 9.5, c: RED });
+    }
+    $$(el, "[data-m]").forEach(function (b) { b.onclick = function () { mode = b.dataset.m; I = info(); draw(); }; });
+    el.querySelector("[data-a=p]").onclick = function () { play = !play; this.textContent = play ? "❚❚" : "▶"; };
+    sl.addEventListener("input", function () { Vrms = +sl.value; el.querySelector(".val").textContent = Vrms; I = info(); draw(); });
+    draw(); loop(el, function (dt) { if (play) { t += dt * 0.35; draw(); } });
+  };
+  A.filter = function (el) {
+    var gel = "penuh", Cv = 2200, RL = 100, Vp = 15.6;
+    var Cs = [100, 220, 470, 1000, 2200, 4700, 10000];
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 170"><g class="w"></g></svg><div class="readout fr"></div><div class="ctrl"><button class="btn sm ghost" data-g="setengah">Setengah gel. (50 Hz)</button><button class="btn sm ghost" data-g="penuh">Gel. penuh (100 Hz)</button></div><div class="ctrl">' + slider("C", 0, 6, 1, 4, "µF") + slider("R_L", 20, 1000, 10, RL, "Ω") + "</div>";
+    var ins = $$(el, "input");
+    function draw() {
+      Cv = Cs[+ins[0].value]; RL = +ins[1].value; $$(el, ".val")[0].textContent = Cv; $$(el, ".val")[1].textContent = RL;
+      var fr = gel === "penuh" ? 100 : 50, tau = RL * Cv * 1e-6, x0 = 20, y0 = 150, W = 300, H = 130, T = 0.06, N = 600, vc = 0, pr = [], pc = [], vmin = 1e9, vmax = 0;
+      for (var k = 0; k <= N; k++) {
+        var tt = k / N * T, vi = Vp * Math.sin(2 * Math.PI * 50 * tt), vr = gel === "penuh" ? Math.abs(vi) : Math.max(0, vi);
+        vc = Math.max(vr, vc * Math.exp(-(T / N) / tau));
+        if (tt > 0.02) { vmin = Math.min(vmin, vc); vmax = Math.max(vmax, vc); }
+        pr.push((x0 + k / N * W) + "," + (y0 - vr / 18 * H)); pc.push((x0 + k / N * W) + "," + (y0 - vc / 18 * H));
+      }
+      var s = line(x0, y0, x0 + W, y0, INK, 1.2) + poly(pr.join(" "), "#9aa5a0", 1.5).replace("/>", ' stroke-dasharray="4 4"/>') + poly(pc.join(" "), COP, 2.8) + txt(x0 + 2, 14, "tanpa filter (putus-putus) · dengan C (tembaga)", { a: "start", size: 9.5, c: MUT });
+      el.querySelector(".w").innerHTML = s;
+      var vrSim = vmax - vmin, vrRumus = Vp / (fr * RL * Cv * 1e-6);
+      el.querySelector(".fr").innerHTML = "V<sub>p</sub> = 15,6 V · ripple simulasi ≈ <b>" + f(vrSim, 2) + " V</b> · rumus V<sub>p</sub>/(f·R<sub>L</sub>·C) = " + f(vrRumus, 2) + " V · V<sub>DC</sub> ≈ <b>" + f(Vp - vrSim / 2, 2) + " V</b>" + (vrRumus > Vp * 0.3 ? " (ripple besar: rumus pendekatan kurang akurat)" : "");
+      $$(el, "[data-g]").forEach(function (b) { b.classList.toggle("on", b.dataset.g === gel); });
+    }
+    $$(el, "[data-g]").forEach(function (b) { b.onclick = function () { gel = b.dataset.g; draw(); }; });
+    ins.forEach(function (i) { i.addEventListener("input", draw); }); draw();
+  };
+  A.zenerreg = function (el) {
+    var Rs = 470, Vz = 5.1, Pmax = 0.5;
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 190"><g class="c"></g></svg><table class="tabel small zr" style="margin:4px 0"></table><div class="ctrl">' + slider("V_in", 4, 20, 0.5, 12, "V") + slider("R_L", 10, 5010, 50, 510, "Ω") + "</div>";
+    var ins = $$(el, "input");
+    function draw() {
+      var Vin = +ins[0].value, RL = +ins[1].value; $$(el, ".val")[0].textContent = f(Vin, 1); $$(el, ".val")[1].textContent = RL;
+      var Vth = Vin * RL / (Rs + RL), on = Vth > Vz, Vo = on ? Vz : Vth, Is = (Vin - Vo) / Rs, IL = Vo / RL, Iz = on ? Is - IL : 0, Pz = Vz * Iz;
+      var s = batV(30, 40, 160, f(Vin, 1) + " V") + line(30, 40, 80, 40) + resH(80, 160, 40) + txt(120, 28, "R_S = 470 Ω", { size: 10.5, b: 1 }) + line(160, 40, 290, 40) + dot(200, 40) + dot(270, 40) + line(30, 160, 290, 160) + dot(200, 160) + dot(270, 160);
+      s += line(200, 40, 200, 88) + '<polygon points="189,112 211,112 200,92" fill="' + (on ? COP : "#c7cfca") + '"/>' + '<polyline points="186,86 190,90 210,90 214,94" fill="none" stroke="' + (on ? COP : "#c7cfca") + '" stroke-width="3"/>' + line(200, 112, 200, 160) + txt(186, 104, "Z", { size: 10.5, a: "end", b: 1 }) + txt(186, 118, "5,1 V", { size: 9.5, a: "end", c: MUT });
+      s += resV(270, 40, 160) + txt(286, 104, "R_L", { size: 10.5, a: "start", b: 1 }) + txt(300, 30, "V_out = " + f(Vo, 2) + " V", { size: 11, a: "end", b: 1, c: on ? GRN : RED });
+      el.querySelector(".c").innerHTML = s;
+      var st = !on ? '<span class="tag no">Zener OFF: V_in terlalu kecil atau beban terlalu berat → tidak teregulasi</span>' : Iz < 0.001 ? '<span class="tag mid">I_Z hampir habis → batas regulasi</span>' : Pz > Pmax ? '<span class="tag no">Daya zener ' + f(Pz * 1000, 0) + " mW &gt; 500 mW → zener bisa rusak</span>" : '<span class="tag ok">Teregulasi</span>';
+      el.querySelector(".zr").innerHTML = "<tr><th>I<sub>S</sub> = (V<sub>in</sub> − V<sub>out</sub>)/R<sub>S</sub></th><th>I<sub>L</sub> = V<sub>out</sub>/R<sub>L</sub></th><th>I<sub>Z</sub> = I<sub>S</sub> − I<sub>L</sub></th><th>P<sub>Z</sub></th></tr><tr><td>" + f(Is * 1000, 2) + " mA</td><td>" + f(IL * 1000, 2) + " mA</td><td><b>" + f(Iz * 1000, 2) + " mA</b></td><td>" + f(Pz * 1000, 1) + " mW</td></tr><tr><td colspan=4>" + st + "</td></tr>";
+    }
+    ins.forEach(function (i) { i.addEventListener("input", draw); }); draw();
+  };
+  function zregSVG(Vin, Rs, RL, Vz) {
+    var s = batV(30, 40, 160, Vin + " V") + line(30, 40, 80, 40) + resH(80, 160, 40) + txt(120, 26, "R_S = " + fR(Rs), { size: 10.5, b: 1 }) + line(160, 40, 290, 40) + dot(200, 40) + dot(270, 40) + line(30, 160, 290, 160) + dot(200, 160) + dot(270, 160);
+    s += line(200, 40, 200, 88) + '<polygon points="189,112 211,112 200,92" fill="' + COP + '"/><polyline points="186,86 190,90 210,90 214,94" fill="none" stroke="' + COP + '" stroke-width="3"/>' + line(200, 112, 200, 160) + txt(186, 104, "Z", { size: 10.5, a: "end", b: 1 }) + txt(186, 118, String(Vz).replace(".", ",") + " V", { size: 9.5, a: "end", c: MUT });
+    s += resV(270, 40, 160) + txt(286, 100, "R_L", { size: 10.5, a: "start", b: 1 }) + txt(286, 114, fR(RL), { size: 9.5, a: "start", c: MUT });
+    return s;
+  }
+  G.zreg = function (p) { return svg(340, 180, zregSVG(p.Vin || 12, p.Rs || 470, p.RL || 510, p.Vz || 5.1)); };
+  G.gel = function (p) {
+    var m = p.mode || "full", x0 = 15, y0 = 100, W = 310, pts = [], pin = [], vc = 0;
+    for (var k = 0; k <= 300; k++) {
+      var th = k / 300 * 4 * Math.PI, vi = Math.sin(th), vr = m === "half" ? Math.max(0, vi) : Math.abs(vi);
+      if (m === "filter") { vc = Math.max(vr, vc - 0.0045); vr = vc; }
+      pin.push((x0 + k / 300 * W) + "," + (y0 - vi * 70)); pts.push((x0 + k / 300 * W) + "," + (y0 - vr * 70));
+    }
+    return svg(340, 180, line(x0, y0, x0 + W, y0, "#c7cfca", 1) + poly(pin.join(" "), "#9aa5a0", 1.4).replace("/>", ' stroke-dasharray="4 4"/>') + poly(pts.join(" "), COP, 2.8) + txt(x0, 176, "2 periode input (40 ms)", { size: 9.5, a: "start", c: MUT }));
+  };
   function mount(root) { $$(root, "[data-anim]").forEach(function (el) { var fn = A[el.dataset.anim]; if (fn && !el.dataset.on) { el.dataset.on = 1; el.classList.add("anim"); try { fn(el); } catch (e) { el.textContent = "(animasi gagal dimuat: " + e.message + ")"; } } }); }
   return { gambar: gambar, mount: mount, parseSpec: parseSpec, fR: fR };
 })();
