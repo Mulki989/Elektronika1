@@ -865,6 +865,146 @@ var Visual = (function () {
     }
     ins.forEach(function (i) { i.addEventListener("input", draw); }); draw();
   };
+  /* =================== ANIMASI MATERI 6: TRANSISTOR BJT =================== */
+  function bjtSym(x, y, pnp, c, lab) {   // basis di (x-24,y); kolektor (x+22,y-40); emitor (x+22,y+40)
+    c = c || INK; var s = line(x - 24, y, x, y, c) + line(x, y - 16, x, y + 16, c, 3.4) + line(x, y - 7, x + 22, y - 22, c) + line(x + 22, y - 22, x + 22, y - 40, c) + line(x, y + 7, x + 22, y + 22, c) + line(x + 22, y + 22, x + 22, y + 40, c);
+    var ax = x + 14, ay = y + 16.5, ang = Math.atan2(15, 22) * 180 / Math.PI;
+    s += '<g transform="translate(' + (pnp ? x + 6 : ax) + "," + (pnp ? y + 11 : ay) + ") rotate(" + (pnp ? ang + 180 : ang) + ')"><polygon points="-7,-5 -7,5 4,0" fill="' + c + '"/></g>';
+    s += '<circle cx="' + (x + 9) + '" cy="' + y + '" r="25" fill="none" stroke="' + c + '" stroke-width="1.4" opacity=".55"/>';
+    if (lab !== false) s += txt(x - 28, y - 5, "B", { size: 10, a: "end", c: MUT }) + txt(x + 28, y - 32, "C", { size: 10, a: "start", c: MUT }) + txt(x + 28, y + 38, "E", { size: 10, a: "start", c: MUT });
+    return s;
+  }
+  function ceSVG(p, st) {   // p: VBB, RB, RC, VCC (Ω); st: hasil (opsional) {IB, IC, VCE, on}
+    st = st || {}; var on = st.on ? COP : INK;
+    var s = batTopP(30, 110, 180, f(p.VBB, 2) + " V", true) + txt(30, 200, "V_BB", { size: 10, c: MUT }) + line(30, 110, 60, 110) + resH(60, 145, 110) + txt(102, 96, "R_B = " + fR(p.RB), { size: 10.5, b: 1 }) + line(145, 110, 156, 110);
+    s += bjtSym(180, 110, false, on) + line(202, 70, 202, 64) + resV(202, 22, 64) + txt(214, 46, "R_C = " + fR(p.RC), { size: 10.5, b: 1, a: "start" }) + line(202, 20, 280, 20) + line(202, 22, 202, 20);
+    s += batTopP(280, 20, 180, f(p.VCC, 1) + " V", true) + txt(280, 200, "V_CC", { size: 10, c: MUT }) + line(202, 150, 202, 180) + line(30, 180, 280, 180) + dot(202, 180);
+    if (st.IB != null) s += arrow(150, 124, 135, 124, BLU) + txt(140, 138, "I_B " + f(st.IB * 1e6, 1) + " µA", { size: 9.5, c: BLU, a: "middle" }) + arrow(190, 52, 190, 68, BLU) + txt(186, 64, "I_C " + f(st.IC * 1000, 2) + " mA", { size: 9.5, c: BLU, a: "end" }) + txt(212, 128, "V_CE = " + f(st.VCE, 2) + " V", { size: 10.5, a: "start", b: 1, c: GRN });
+    return s;
+  }
+  function solveCE(VBB, RB, RC, VCC, beta, VA) {   // model sederhana dengan Early & saturasi halus
+    VA = VA || 1e9; var IB = Math.max(0, (VBB - 0.7) / RB);
+    var fIC = function (vce) { return beta * IB * (1 + vce / VA) * (1 - Math.exp(-vce / 0.06)); };
+    var lo = 0, hi = VCC; for (var i = 0; i < 60; i++) { var m = (lo + hi) / 2; if (VCC - fIC(m) * RC > m) lo = m; else hi = m; }
+    var VCE = (lo + hi) / 2, IC = (VCC - VCE) / RC, ICsat = (VCC - 0.2) / RC;
+    var reg = IB <= 0 ? "cutoff" : beta * IB >= ICsat ? "saturasi" : "aktif";
+    if (reg === "saturasi") { VCE = 0.2; IC = ICsat; } if (reg === "cutoff") { VCE = VCC; IC = 0; } if (reg === "aktif") { IC = beta * IB; VCE = VCC - IC * RC; }
+    return { IB: IB, IC: IC, IE: IC + IB, VCE: VCE, reg: reg, ICsat: ICsat, PD: VCE * IC };
+  }
+  G.ce = function (p) { return svg(340, 205, ceSVG({ VBB: +p.VBB || 2, RB: +p.RB || 100000, RC: +p.RC || 1000, VCC: +p.VCC || 10 })); };
+  G.bjtsimbol = function () {
+    var s = bjtSym(90, 80, false, COP) + bjtSym(250, 80, true, COP) + txt(100, 150, "NPN", { size: 13, b: 1 }) + txt(260, 150, "PNP", { size: 13, b: 1 }) + txt(100, 166, "panah keluar", { size: 10, c: MUT }) + txt(260, 166, "panah masuk", { size: 10, c: MUT });
+    return svg(340, 175, s);
+  };
+  G.bjtstruktur = function (p) {
+    var pnp = p.tipe === "pnp", L = pnp ? ["P", "N", "P"] : ["N", "P", "N"], col = pnp ? ["#f6e7d8", "#e3ecfb", "#f6e7d8"] : ["#e3ecfb", "#f6e7d8", "#e3ecfb"], s = "", xs = [40, 150, 190];
+    var w = [110, 40, 110], nm = ["Emitor", "Basis", "Kolektor"], dop = ["doping tinggi", "tipis, doping rendah", "doping sedang, paling lebar"];
+    for (var i = 0; i < 3; i++) s += '<rect x="' + xs[i] + '" y="40" width="' + w[i] + '" height="70" fill="' + col[i] + '" stroke="#9aa5a0"/>' + txt(xs[i] + w[i] / 2, 82, L[i] + (i === 0 ? "+" : ""), { size: 18, b: 1 }) + txt(xs[i] + w[i] / 2, 130, nm[i], { size: 11, b: 1 }) + txt(xs[i] + w[i] / 2, i === 1 ? 152 : 144, dop[i], { size: 9, c: MUT });
+    s += line(xs[0], 75, 20, 75) + txt(16, 79, "E", { a: "end", size: 11, b: 1 }) + line(170, 40, 170, 20) + txt(170, 14, "B", { size: 11, b: 1 }) + line(300, 75, 320, 75) + txt(324, 79, "C", { a: "start", size: 11, b: 1 });
+    s += txt(150, 34, "J_BE", { size: 9, c: COP, a: "end" }) + txt(190, 34, "J_BC", { size: 9, c: COP, a: "start" });
+    return svg(340, 160, s);
+  };
+  G.kurvabasis = function () {
+    var x0 = 40, y0 = 150, W = 260, H = 120, s = axes(x0, y0, W, H, "V_BE (V)", "I_B (µA)"), pts = [];
+    for (var k = 0; k <= 100; k++) { var v = k / 100 * 1.0, i = 6.8e-4 * (Math.exp(v / 0.0637) - 1); if (i > H) break; pts.push((x0 + v * W) + "," + (y0 - i)); }
+    s += poly(pts.join(" "), COP, 3) + line(x0 + 0.7 * W, y0, x0 + 0.7 * W, y0 - H, RED, 1).replace("/>", ' stroke-dasharray="4 3"/>') + txt(x0 + 0.7 * W, y0 + 14, "0,7", { size: 10, c: RED, b: 1 }) + txt(x0 + 0.35 * W, y0 - 20, "I_B ≈ 0 (belum ON)", { size: 9.5, c: MUT });
+    return svg(340, 170, s);
+  };
+  A.bjtarus = function (el) {
+    var pnp = false, parts = [], t = 0;
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 200"><g class="c"></g></svg><div class="readout ar"></div><div class="ctrl"><button class="btn sm ghost" data-t="npn">NPN</button><button class="btn sm ghost" data-t="pnp">PNP</button></div><div class="ctrl">' + slider("I_B", 0, 100, 5, 20, "µA") + slider("β", 50, 300, 10, 100, "") + "</div>";
+    var ins = $$(el, "input");
+    for (var i = 0; i < 40; i++) parts.push({ x: Math.random(), y: Math.random(), rek: Math.random() < 0.06 });
+    function draw(dt) {
+      var IB = +ins[0].value * 1e-6, b = +ins[1].value, IC = b * IB, IE = IC + IB, al = b / (b + 1), sp = IB > 0 ? 0.3 + IB * 6000 : 0;
+      $$(el, ".val")[0].textContent = IB * 1e6; $$(el, ".val")[1].textContent = b;
+      var L = pnp ? ["P", "N", "P"] : ["N", "P", "N"], cE = pnp ? "#f6e7d8" : "#e3ecfb", cB = pnp ? "#e3ecfb" : "#f6e7d8";
+      var s = '<rect x="30" y="50" width="110" height="80" fill="' + cE + '" stroke="#9aa5a0"/><rect x="140" y="50" width="34" height="80" fill="' + cB + '" stroke="#9aa5a0"/><rect x="174" y="50" width="136" height="80" fill="' + cE + '" stroke="#9aa5a0"/>';
+      s += txt(85, 46, "Emitor (" + L[0] + "+)", { size: 10.5, b: 1 }) + txt(157, 46, "B (" + L[1] + ")", { size: 10.5, b: 1 }) + txt(242, 46, "Kolektor (" + L[2] + ")", { size: 10.5, b: 1 });
+      parts.forEach(function (q) {
+        if (sp) { q.x += dt * sp * 0.5; if (q.rek && q.x > 0.42) { q.y -= dt * sp * 1.2; } if (q.x > 1 || q.y < -0.3) { q.x = 0; q.y = Math.random(); q.rek = Math.random() < 1 / (b + 1) * 4; } }
+        var X = 30 + q.x * 280, Y = 55 + Math.max(-0.3, q.y) * 70;
+        if (q.rek && q.x > 0.42) X = 157;
+        s += pnp ? '<circle cx="' + X + '" cy="' + Y + '" r="3.2" fill="#fff" stroke="' + COP + '" stroke-width="1.6"/>' : '<circle cx="' + X + '" cy="' + Y + '" r="3.2" fill="' + BLU + '"/>';
+      });
+      s += arrow(60, 160, 290, 160, pnp ? COP : BLU) + txt(175, 176, pnp ? "hole bergerak E → C (arus konvensional E → C)" : "elektron bergerak E → C (arus konvensional C → E)", { size: 9.5, c: MUT });
+      s += txt(157, 196, "sebagian kecil keluar lewat basis = I_B", { size: 9.5, c: COP });
+      el.querySelector(".c").innerHTML = s;
+      el.querySelector(".ar").innerHTML = "I_C = β·I_B = " + b + " × " + f(IB * 1e6, 0) + " µA = <b>" + f(IC * 1000, 2) + " mA</b> · I_E = I_C + I_B = <b>" + f(IE * 1000, 3) + " mA</b> · α = I_C/I_E = <b>" + f(al, 4) + "</b>";
+      $$(el, "[data-t]").forEach(function (x) { x.classList.toggle("on", (x.dataset.t === "pnp") === pnp); });
+    }
+    $$(el, "[data-t]").forEach(function (x) { x.onclick = function () { pnp = x.dataset.t === "pnp"; draw(0); }; });
+    ins.forEach(function (i) { i.addEventListener("input", function () { draw(0); }); });
+    draw(0); loop(el, function (dt) { draw(dt); });
+  };
+  A.kurvakolektor = function (el) {
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 205"><g class="c"></g></svg><svg class="diag" viewBox="0 0 340 215"><g class="g"></g></svg><div class="readout kr"></div><div class="ctrl">' + slider("V_BB", 0, 5, 0.1, 2, "V") + slider("R_B", 10, 470, 10, 100, "kΩ") + slider("β", 50, 300, 10, 200, "") + "</div><div class=\"ctrl\">" + slider("R_C", 100, 5000, 100, 1000, "Ω") + slider("V_CC", 5, 20, 1, 10, "V") + "</div>";
+    var ins = $$(el, "input");
+    function draw() {
+      var VBB = +ins[0].value, RB = +ins[1].value * 1000, b = +ins[2].value, RC = +ins[3].value, VCC = +ins[4].value;
+      [f(VBB, 1), RB / 1000, b, RC, VCC].forEach(function (v, i) { $$(el, ".val")[i].textContent = v; });
+      var r = solveCE(VBB, RB, RC, VCC, b);
+      el.querySelector(".c").innerHTML = ceSVG({ VBB: VBB, RB: RB, RC: RC, VCC: VCC }, { IB: r.IB, IC: r.IC, VCE: r.VCE, on: r.reg !== "cutoff" });
+      var x0 = 44, y0 = 180, W = 250, H = 150, Vm = 20, Im = Math.max(VCC / RC * 1.1, b * r.IB * 1.3) * 1000, nice = [1, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 60, 80, 100, 120, 150, 200, 250, 300, 400, 500];
+      Im = nice.filter(function (n) { return n >= Im; })[0] || Im;
+      var X = function (v) { return x0 + v / Vm * W; }, Y = function (i) { return y0 - i / Im * H; }, s = axes(x0, y0, W, H, "V_CE (V)", "I_C (mA)");
+      for (var v = 5; v <= 20; v += 5) s += txt(X(v), y0 + 14, v, { size: 9.5, c: MUT });
+      for (var k = 1; k <= 4; k++) s += line(x0, Y(Im * k / 4), x0 + W, Y(Im * k / 4), "#e6ebe8", 1) + txt(x0 - 5, Y(Im * k / 4) + 4, f(Im * k / 4, 1), { size: 9.5, a: "end", c: MUT });
+      var step = Math.max(5, Math.ceil(VCC / RC / b * 1e6 / 6 / 5) * 5);
+      for (var n = 1; n <= 6; n++) { var ib = n * step * 1e-6, pts = []; for (var q = 0; q <= 60; q++) { var vc = q / 60 * Vm, ic = b * ib * (1 + vc / 150) * (1 - Math.exp(-vc / 0.25)) * 1000; if (ic > Im) break; pts.push(X(vc) + "," + Y(ic)); } if (pts.length > 1) s += poly(pts.join(" "), "#9aa5a0", 1.4) + txt(X(Vm) + 2, Y(b * ib * (1 + Vm / 150) * 1000) + 3, n * step + " µA", { size: 8.5, a: "start", c: MUT }); }
+      s += '<rect x="' + x0 + '" y="' + (y0 - H) + '" width="' + (X(0.7) - x0) + '" height="' + H + '" fill="' + RED + '" opacity=".08"/>' + txt(x0 + 3, y0 - H + 10, "saturasi", { size: 9, a: "start", c: RED });
+      s += line(X(0), Y(VCC / RC * 1000), X(VCC), Y(0), COP, 2.4) + txt(X(VCC), y0 + 26, "V_CC", { size: 9, c: COP });
+      s += '<circle cx="' + X(r.VCE) + '" cy="' + Y(r.IC * 1000) + '" r="6" fill="' + (r.reg === "aktif" ? GRN : RED) + '" stroke="#fff" stroke-width="2"/>' + txt(X(r.VCE) + 8, Y(r.IC * 1000) - 8, "Q", { size: 12, b: 1, a: "start", c: r.reg === "aktif" ? GRN : RED });
+      el.querySelector(".g").innerHTML = s + (r.IB > 0 ? (function () { var pq = []; for (var q2 = 0; q2 <= 60; q2++) { var vq = q2 / 60 * Vm, iq = b * r.IB * (1 + vq / 150) * (1 - Math.exp(-vq / 0.25)) * 1000; if (iq > Im) break; pq.push(X(vq) + "," + Y(iq)); } return poly(pq.join(" "), BLU, 1.8).replace("/>", ' stroke-dasharray="5 3"/>'); })() : "") + txt(x0, 208, "tembaga: garis beban · biru: kurva I_B saat ini", { size: 9.5, a: "start", c: MUT });
+      var tag = r.reg === "aktif" ? '<span class="tag ok">AKTIF (penguat)</span>' : r.reg === "saturasi" ? '<span class="tag no">SATURASI (saklar ON)</span>' : '<span class="tag mid">CUT-OFF (saklar OFF)</span>';
+      el.querySelector(".kr").innerHTML = tag + " I_B = (" + f(VBB, 1) + " − 0,7)/" + fR(RB) + " = <b>" + f(r.IB * 1e6, 1) + " µA</b> · β·I_B = " + f(b * r.IB * 1000, 2) + " mA · I_C(sat) = " + f(r.ICsat * 1000, 2) + " mA → I_C = <b>" + f(r.IC * 1000, 2) + " mA</b> · V_CE = <b>" + f(r.VCE, 2) + " V</b> · P_D = " + f(r.PD * 1000, 1) + " mW";
+    }
+    ins.forEach(function (i) { i.addEventListener("input", draw); }); draw();
+  };
+  A.bjtsaklar = function (el) {
+    var on = true;
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 210"><g class="c"></g></svg><div class="readout sr"></div><div class="ctrl"><button class="btn sm ghost" data-v="1">V_in = 5 V (HIGH)</button><button class="btn sm ghost" data-v="0">V_in = 0 V (LOW)</button></div><div class="ctrl">' + slider("R_B", 1, 100, 0.1, 4.7, "kΩ") + slider("β", 30, 300, 10, 100, "") + "</div>";
+    var ins = $$(el, "input");
+    function draw() {
+      var RB = +ins[0].value * 1000, b = +ins[1].value; $$(el, ".val")[0].textContent = f(RB / 1000, 1); $$(el, ".val")[1].textContent = b;
+      var VCC = 5, RC = 150, VL = 2, Vin = on ? 5 : 0, IB = Math.max(0, (Vin - 0.7) / RB), ICs = (VCC - VL - 0.2) / RC, IC = Math.min(b * IB, ICs), sat = b * IB >= ICs && IB > 0, VCE = IB > 0 ? (sat ? 0.2 : VCC - VL - IC * RC) : VCC - VL, glow = IC / ICs;
+      var s = txt(30, 100, "V_in", { size: 10, a: "middle", b: 1 }) + '<rect x="14" y="106" width="34" height="20" rx="4" fill="' + (on ? COP : "#c7cfca") + '"/>' + txt(31, 120, on ? "5 V" : "0 V", { size: 10, c: "#fff", b: 1 }) + line(48, 116, 60, 116) + resH(60, 145, 116) + txt(102, 102, "R_B = " + fR(RB), { size: 10.5, b: 1 }) + line(145, 116, 156, 116);
+      s += bjtSym(180, 116, false, IB > 0 ? COP : INK) + line(202, 76, 202, 120 - 44) + diodaV(202, 50, 76, 1, glow > 0.05 ? "#ef4444" : "#c7cfca") + resV(202, 10, 50) + txt(214, 30, "R_C = 150 Ω", { size: 10.5, b: 1, a: "start" }) + txt(222, 66, "LED merah", { size: 10, a: "start" }) + line(202, 156, 202, 190) + line(14, 190, 285, 190);
+      if (glow > 0.05) s += '<circle cx="202" cy="63" r="' + (10 + 12 * glow) + '" fill="#ef4444" opacity="' + (0.15 + 0.35 * glow) + '"/>';
+      s += line(202, 10, 285, 10) + batTopP(285, 10, 190, "5 V", true) + txt(31, 140, "", {}) + line(31, 126, 31, 190);
+      el.querySelector(".c").innerHTML = s;
+      var st = IB === 0 ? '<span class="tag mid">CUT-OFF: LED padam</span>' : sat ? '<span class="tag ok">SATURASI: LED menyala penuh</span>' : '<span class="tag no">AKTIF: LED redup, transistor panas</span>';
+      el.querySelector(".sr").innerHTML = st + " I_B = " + f(IB * 1000, 3) + " mA · β·I_B = " + f(b * IB * 1000, 1) + " mA · I_C(sat) = " + f(ICs * 1000, 1) + " mA → I_C = <b>" + f(IC * 1000, 1) + " mA</b> · V_CE = " + f(VCE, 2) + " V · P_D = " + f(VCE * IC * 1000, 1) + " mW";
+      $$(el, "[data-v]").forEach(function (x) { x.classList.toggle("on", (x.dataset.v === "1") === on); });
+    }
+    $$(el, "[data-v]").forEach(function (x) { x.onclick = function () { on = x.dataset.v === "1"; draw(); }; });
+    ins.forEach(function (i) { i.addEventListener("input", draw); }); draw();
+  };
+  A.bjtpenguat = function (el) {
+    var t = 0, play = true, RB = 10000, RC = 470, VCC = 10, b = 200;
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 215"><g class="g"></g></svg><svg class="diag" viewBox="0 0 340 120"><g class="w"></g></svg><div class="readout pr"></div><div class="ctrl"><button class="btn sm ghost" data-a="p">❚❚</button>' + slider("V_BB (titik Q)", 0.8, 1.8, 0.05, 1.2, "V") + slider("v_in puncak", 0, 0.6, 0.02, 0.2, "V") + "</div>";
+    var ins = $$(el, "input");
+    function draw() {
+      var VBB = +ins[0].value, va = +ins[1].value; $$(el, ".val")[0].textContent = f(VBB, 2); $$(el, ".val")[1].textContent = f(va, 2);
+      var Q = solveCE(VBB, RB, RC, VCC, b), now = solveCE(VBB + va * Math.sin(2 * Math.PI * t), RB, RC, VCC, b);
+      var x0 = 44, y0 = 180, W = 250, H = 150, Im = 25, X = function (v) { return x0 + v / 10 * W; }, Y = function (i) { return y0 - i / Im * H; }, s = axes(x0, y0, W, H, "V_CE (V)", "I_C (mA)");
+      for (var v = 2; v <= 10; v += 2) s += txt(X(v), y0 + 14, v, { size: 9.5, c: MUT });
+      for (var k = 1; k <= 5; k++) s += txt(x0 - 5, Y(k * 5) + 4, k * 5, { size: 9.5, a: "end", c: MUT });
+      s += line(X(0), Y(VCC / RC * 1000), X(VCC), Y(0), COP, 2.4);
+      var lo = solveCE(VBB - va, RB, RC, VCC, b), hi = solveCE(VBB + va, RB, RC, VCC, b);
+      s += line(X(lo.VCE), Y(lo.IC * 1000), X(hi.VCE), Y(hi.IC * 1000), BLU, 6).replace("/>", ' opacity=".25" stroke-linecap="round"/>');
+      s += '<circle cx="' + X(Q.VCE) + '" cy="' + Y(Q.IC * 1000) + '" r="5" fill="none" stroke="' + GRN + '" stroke-width="2"/>' + '<circle cx="' + X(now.VCE) + '" cy="' + Y(now.IC * 1000) + '" r="6" fill="' + BLU + '"/>' + txt(X(Q.VCE) + 8, Y(Q.IC * 1000) - 10, "Q", { size: 12, b: 1, a: "start", c: GRN });
+      el.querySelector(".g").innerHTML = s + txt(x0, 208, "titik biru bergerak di garis beban mengikuti sinyal input", { size: 9.5, a: "start", c: MUT });
+      var pi = [], po = [], x1 = 30, Wd = 290, clip = false;
+      for (var n = 0; n <= 120; n++) { var tt = n / 120 * 2, vi = va * Math.sin(2 * Math.PI * tt), r2 = solveCE(VBB + vi, RB, RC, VCC, b); if (r2.reg !== "aktif") clip = true; pi.push((x1 + n / 120 * Wd) + "," + (60 - vi / 0.6 * 25)); po.push((x1 + n / 120 * Wd) + "," + (60 - (r2.VCE - Q.VCE) / 6 * 50)); }
+      el.querySelector(".w").innerHTML = line(x1, 60, x1 + Wd, 60, "#c7cfca", 1) + poly(pi.join(" "), BLU, 1.8) + poly(po.join(" "), COP, 2.6) + txt(x1, 12, "v_in (biru) · perubahan V_CE (tembaga, terbalik)", { size: 9.5, a: "start", c: MUT });
+      var Av = va > 0 ? (lo.VCE - hi.VCE) / (2 * va) : b * RC / RB;
+      el.querySelector(".pr").innerHTML = "Q: I_C = " + f(Q.IC * 1000, 2) + " mA, V_CE = <b>" + f(Q.VCE, 2) + " V</b> · ayunan V_CE " + f(hi.VCE, 2) + "–" + f(lo.VCE, 2) + " V · penguatan ≈ <b>" + f(Av, 1) + "×</b> (perkiraan β·R_C/R_B = " + f(b * RC / RB, 1) + ")" + (clip ? ' · <span class="tag no">terpotong: Q terlalu dekat saturasi/cut-off atau sinyal terlalu besar</span>' : ' · <span class="tag ok">tidak terpotong</span>');
+    }
+    el.querySelector("[data-a=p]").onclick = function () { play = !play; this.textContent = play ? "❚❚" : "▶"; };
+    ins.forEach(function (i) { i.addEventListener("input", draw); });
+    draw(); loop(el, function (dt) { if (play) { t += dt * 0.4; draw(); } });
+  };
   function mount(root) { $$(root, "[data-anim]").forEach(function (el) { var fn = A[el.dataset.anim]; if (fn && !el.dataset.on) { el.dataset.on = 1; el.classList.add("anim"); try { fn(el); } catch (e) { el.textContent = "(animasi gagal dimuat: " + e.message + ")"; } } }); }
   return { gambar: gambar, mount: mount, parseSpec: parseSpec, fR: fR };
 })();
