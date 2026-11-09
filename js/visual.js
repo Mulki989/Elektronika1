@@ -250,6 +250,174 @@ var Visual = (function () {
     }
     judge();
   };
+  /* =================== ANIMASI MATERI 2: SEMIKONDUKTOR =================== */
+  var KULIT = { 5: [2, 3], 6: [2, 4], 13: [2, 8, 3], 14: [2, 8, 4], 15: [2, 8, 5], 29: [2, 8, 18, 1], 31: [2, 8, 18, 3], 32: [2, 8, 18, 4], 33: [2, 8, 18, 5], 51: [2, 8, 18, 18, 5] };
+  var UNSUR = { B: 5, C: 6, Al: 13, Si: 14, P: 15, Cu: 29, Ga: 31, Ge: 32, As: 33, Sb: 51 };
+  var NAMA = { 5: "Boron (B)", 6: "Karbon (C)", 13: "Aluminium (Al)", 14: "Silikon (Si)", 15: "Fosfor (P)", 29: "Tembaga (Cu)", 31: "Galium (Ga)", 32: "Germanium (Ge)", 33: "Arsen (As)", 51: "Antimon (Sb)" };
+  function atomSVG(z, sudut) {
+    var sh = KULIT[z] || [2, 8, 4], cx = 160, cy = 150, s = "", n = sh.length, rmax = 135, r0 = n > 4 ? 30 : 38, dr = (rmax - r0) / Math.max(1, n - 1);
+    s += '<circle cx="' + cx + '" cy="' + cy + '" r="20" fill="#c0392b"/>' + txt(cx, cy + 4, "+" + z, { c: "#fff", b: 1, size: 12 });
+    sh.forEach(function (k, i) {
+      var r = r0 + i * dr, val = i === n - 1, a0 = (sudut || 0) * (1.6 / (i + 1));
+      s += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + (val ? COP : "#b9c4be") + '" stroke-width="' + (val ? 1.8 : 1.2) + '" stroke-dasharray="' + (val ? "0" : "3 3") + '"/>';
+      for (var j = 0; j < k; j++) { var a = a0 + j * 2 * Math.PI / k; s += '<circle cx="' + (cx + r * Math.cos(a)) + '" cy="' + (cy + r * Math.sin(a)) + '" r="' + (val ? 5.5 : 3.6) + '" fill="' + (val ? COP : BLU) + '"/>'; }
+    });
+    return s;
+  }
+  G.atom = function (p) { var z = p.Z || UNSUR[p.el] || 14; return svg(320, 300, atomSVG(z, 0.3)); };
+  G.pitapn = function () {
+    var s = '<rect x="20" y="20" width="110" height="220" fill="#fde8e6" opacity=".6"/><rect x="230" y="20" width="110" height="220" fill="#e3ecfb" opacity=".6"/><rect x="130" y="20" width="100" height="220" fill="#f3efe2"/>';
+    s += txt(75, 36, "Tipe P", { b: 1 }) + txt(285, 36, "Tipe N", { b: 1 }) + txt(180, 36, "deplesi", { size: 11, c: MUT });
+    var ec = "M20 80 H130 C165 80 195 140 230 140 H340", ev = "M20 160 H130 C165 160 195 220 230 220 H340";
+    s += '<path d="' + ec + '" fill="none" stroke="' + BLU + '" stroke-width="2.6"/><path d="' + ev + '" fill="none" stroke="' + COP + '" stroke-width="2.6"/>';
+    s += line(20, 180, 340, 180, INK, 1.2).replace("/>", ' stroke-dasharray="6 4"/>') + txt(344, 184, "E_F", { a: "start", size: 11 });
+    s += txt(344, 144, "E_c", { a: "start", size: 11, c: BLU }) + txt(344, 224, "E_v", { a: "start", size: 11, c: COP }) + txt(16, 84, "E_c", { a: "end", size: 11, c: BLU }) + txt(16, 164, "E_v", { a: "end", size: 11, c: COP });
+    s += arrow(250, 82, 250, 136, RED) + arrow(250, 136, 250, 82, RED) + txt(256, 114, "qV₀ (≈0,7 eV)", { a: "start", size: 11, c: RED });
+    s += txt(75, 200, "○ hole mayoritas", { size: 10, c: COP }) + txt(285, 160, "● elektron mayoritas", { size: 10, c: BLU });
+    s += txt(180, 258, "Energi elektron ↑   ·   pita membengkok di daerah deplesi", { size: 10, c: MUT });
+    return svg(370, 265, s);
+  };
+  A.atom = function (el) {
+    var z = UNSUR[el.dataset.el] || 14, ang = 0, pilihan = (el.dataset.pilih || "Si,Ge,C,Cu,P,B").split(",");
+    el.innerHTML = '<svg class="diag" viewBox="0 0 320 300"><g class="g"></g></svg><div class="readout rd"></div><div class="ctrl seg2b">' + pilihan.map(function (k) { return '<button class="btn sm ghost" data-z="' + UNSUR[k] + '">' + k + "</button>"; }).join("") + "</div>";
+    function info() { var sh = KULIT[z]; el.querySelector(".rd").innerHTML = NAMA[z] + " · Z = " + z + " · kulit " + sh.join("-") + " · <b>" + sh[sh.length - 1] + " elektron valensi</b> (kulit ke-" + sh.length + ")"; $$(el, "[data-z]").forEach(function (b) { b.classList.toggle("on", +b.dataset.z === z); }); }
+    $$(el, "[data-z]").forEach(function (b) { b.onclick = function () { z = +b.dataset.z; info(); }; });
+    info(); var g = el.querySelector(".g");
+    loop(el, function (dt) { ang += dt * 0.8; g.innerHTML = atomSVG(z, ang); });
+  };
+  A.kisi = function (el) {
+    var C = 5, R = 4, X0 = 46, Y0 = 40, D = 62, mode = el.dataset.mode || "murni";
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 250"><g class="b"></g><g class="f"></g></svg><div class="readout kx"></div><div class="ctrl">' +
+      [["murni", "Si murni"], ["panas", "Suhu naik"], ["n", "Tipe N (+ fosfor)"], ["p", "Tipe P (+ boron)"]].map(function (m) { return '<button class="btn sm ghost" data-m="' + m[0] + '">' + m[1] + "</button>"; }).join("") + "</div>";
+    var pos = function (i, j) { return [X0 + i * D, Y0 + j * D]; }, slots = [];
+    for (var j = 0; j < R; j++) for (var i = 0; i < C; i++) { if (i < C - 1) slots.push([i, j, i + 1, j]); if (j < R - 1) slots.push([i, j, i, j + 1]); }
+    var es = [];   // posisi elektron ikatan
+    slots.forEach(function (b) { var a = pos(b[0], b[1]), c = pos(b[2], b[3]), h = b[1] === b[3]; [0.38, 0.62].forEach(function (t) { es.push({ x: a[0] + (c[0] - a[0]) * t + (h ? 0 : (t < 0.5 ? -5 : 5)), y: a[1] + (c[1] - a[1]) * t + (h ? (t < 0.5 ? -5 : 5) : 0), ada: true }); }); });
+    var bebas = [], hole = -1, tHop = 0, tGen = 0;
+    var tengah = [2, 1], pusat = pos(2, 1);
+    var info = { murni: "Si murni: setiap atom berbagi 4 elektron valensi dengan 4 tetangga (ikatan kovalen). Hampir tidak ada elektron bebas, jadi daya hantarnya rendah.", panas: "Energi panas memutus sebagian ikatan: elektron menjadi elektron bebas (biru) dan meninggalkan hole (lingkaran merah). Terbentuk pasangan elektron-hole, lalu sesekali berekombinasi.", n: "Atom fosfor (P, 5 elektron valensi) memakai 4 elektron untuk ikatan. Elektron ke-5 menjadi elektron bebas → donor → tipe N. Atom P tertinggal sebagai ion positif yang tidak bergerak.", p: "Atom boron (B, 3 elektron valensi) hanya mengisi 3 ikatan. Ikatan yang kosong adalah hole → akseptor → tipe P. Elektron tetangga melompat mengisinya sehingga hole berpindah." };
+    function setMode(m) {
+      mode = m; bebas = []; hole = -1; es.forEach(function (e) { e.ada = true; });
+      if (m === "n") bebas.push({ x: pusat[0] + 18, y: pusat[1] - 18, vx: 30, vy: 20, ikut: true });
+      if (m === "p") { var k = nearest(pusat[0] + 31, pusat[1]); es[k].ada = false; hole = k; }
+      $$(el, "[data-m]").forEach(function (b) { b.classList.toggle("on", b.dataset.m === m); }); el.querySelector(".kx").textContent = info[m]; draw();
+    }
+    function nearest(x, y, skip) { var bi = 0, bd = 1e9; es.forEach(function (e, k) { var d = (e.x - x) * (e.x - x) + (e.y - y) * (e.y - y); if (d < bd && k !== skip) { bd = d; bi = k; } }); return bi; }
+    function draw() {
+      var s = "";
+      slots.forEach(function (b) { var a = pos(b[0], b[1]), c = pos(b[2], b[3]); s += line(a[0], a[1], c[0], c[1], "#c9d2cc", 7); });
+      for (var j = 0; j < R; j++) for (var i = 0; i < C; i++) {
+        var p = pos(i, j), lab = "Si", col = "#e8eef0", tc = INK;
+        if (i === tengah[0] && j === tengah[1] && mode === "n") { lab = "P⁺"; col = "#dbe7fb"; tc = BLU; }
+        if (i === tengah[0] && j === tengah[1] && mode === "p") { lab = "B⁻"; col = "#fbe1dc"; tc = RED; }
+        s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="17" fill="' + col + '" stroke="#7d8a84" stroke-width="1.5"/>' + txt(p[0], p[1] + 4, lab, { size: 11, b: 1, c: tc });
+      }
+      es.forEach(function (e, k) { s += e.ada ? '<circle cx="' + e.x + '" cy="' + e.y + '" r="3.3" fill="' + COP + '"/>' : '<circle cx="' + e.x + '" cy="' + e.y + '" r="5.5" fill="none" stroke="' + RED + '" stroke-width="2" stroke-dasharray="3 2"/>'; });
+      el.querySelector(".b").innerHTML = s;
+    }
+    function drawFree() { el.querySelector(".f").innerHTML = bebas.map(function (b) { return '<circle cx="' + b.x + '" cy="' + b.y + '" r="5" fill="' + BLU + '" stroke="#fff" stroke-width="1.5"/>'; }).join(""); }
+    $$(el, "[data-m]").forEach(function (b) { b.onclick = function () { setMode(b.dataset.m); }; });
+    setMode(mode);
+    loop(el, function (dt) {
+      bebas.forEach(function (b) { b.x += b.vx * dt; b.y += b.vy * dt; if (Math.random() < 0.03) { b.vx = (Math.random() - 0.5) * 90; b.vy = (Math.random() - 0.5) * 90; } if (b.x < 20 || b.x > 320) b.vx *= -1; if (b.y < 15 || b.y > 235) b.vy *= -1; b.x = Math.max(20, Math.min(320, b.x)); b.y = Math.max(15, Math.min(235, b.y)); });
+      if (mode === "panas") {
+        tGen += dt;
+        if (tGen > 1.6) { tGen = 0;
+          if (bebas.length < 3) { var k = Math.floor(Math.random() * es.length); if (es[k].ada) { es[k].ada = false; bebas.push({ x: es[k].x, y: es[k].y, vx: (Math.random() - 0.5) * 80, vy: (Math.random() - 0.5) * 80, dari: k, umur: 0 }); draw(); } }
+          else { var b0 = bebas.shift(); es[b0.dari].ada = true; draw(); }
+        }
+      }
+      if (mode === "p" && hole >= 0) { tHop += dt; if (tHop > 1.3) { tHop = 0; var src = nearest(es[hole].x + (Math.random() - 0.5) * 70, es[hole].y + (Math.random() - 0.5) * 70, hole); es[hole].ada = true; es[src].ada = false; hole = src; draw(); } }
+      drawFree();
+    });
+  };
+  A.pita = function (el) {
+    var jenis = "semi", T = 40, ph = 0;
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 250"><g class="g"></g></svg><div class="readout pr"></div><div class="ctrl">' + [["iso", "Isolator"], ["semi", "Semikonduktor"], ["kond", "Konduktor"]].map(function (m) { return '<button class="btn sm ghost" data-j="' + m[0] + '">' + m[1] + "</button>"; }).join("") + slider("Energi panas/cahaya", 0, 100, 5, T, "%") + "</div>";
+    var EG = { iso: [9, "SiO₂ ≈ 9 eV (berlian ≈ 5,5 eV)"], semi: [1.12, "Si = 1,12 eV (Ge 0,66 eV; GaAs 1,42 eV)"], kond: [0, "pita tumpang tindih (Cu, Ag, Au, Al)"] };
+    function draw() {
+      var top = 30, H = 200, cbH = 55, vbH = 55, gapPx = jenis === "iso" ? 90 : jenis === "semi" ? 40 : -20, vbY = top + cbH + gapPx, s = "";
+      s += '<rect x="112" y="' + top + '" width="180" height="' + cbH + '" rx="6" fill="#e3ecfb" stroke="' + BLU + '"/>' + txt(104, top + 26, "Pita", { a: "end", size: 11, c: BLU }) + txt(104, top + 40, "konduksi", { a: "end", size: 11, c: BLU });
+      s += '<rect x="112" y="' + vbY + '" width="180" height="' + vbH + '" rx="6" fill="#f6e7d8" stroke="' + COP + '" opacity=".95"/>' + txt(104, vbY + 26, "Pita", { a: "end", size: 11, c: COP }) + txt(104, vbY + 40, "valensi", { a: "end", size: 11, c: COP });
+      if (gapPx > 0) s += arrow(306, top + cbH + 2, 306, vbY - 2, INK) + arrow(306, vbY - 2, 306, top + cbH + 2, INK) + txt(312, top + cbH + gapPx / 2 + 4, "E_g", { a: "start", b: 1 });
+      else s += txt(298, vbY + 10, "tumpang", { a: "start", size: 10 }) + txt(298, vbY + 24, "tindih", { a: "start", size: 10 });
+      var nFree = jenis === "iso" ? 0 : jenis === "semi" ? Math.round(T / 100 * 7) : 12, slotsV = 14;
+      for (var i = 0; i < slotsV; i++) { var x = 124 + i * 12, y = vbY + 20 + (i % 2) * 16, isHole = jenis === "semi" && i % 2 === 0 && i / 2 < nFree; s += isHole ? '<circle cx="' + x + '" cy="' + y + '" r="5" fill="none" stroke="' + RED + '" stroke-width="2" stroke-dasharray="3 2"/>' : '<circle cx="' + x + '" cy="' + y + '" r="4.5" fill="' + COP + '"/>'; }
+      for (var k = 0; k < nFree; k++) { var fx = 122 + ((k * 37 + ph * (20 + k * 3)) % 160), fy = top + 15 + (k % 3) * 13; s += '<circle cx="' + fx + '" cy="' + fy + '" r="4.5" fill="' + BLU + '"/>'; }
+      el.querySelector(".g").innerHTML = s;
+      el.querySelector(".pr").innerHTML = "E<sub>g</sub>: " + EG[jenis][1] + " · elektron bebas: <b>" + (jenis === "iso" ? "≈ 0" : jenis === "kond" ? "selalu banyak" : nFree === 0 ? "≈ 0" : "sebanding energi (" + nFree + ")") + "</b>";
+      $$(el, "[data-j]").forEach(function (b) { b.classList.toggle("on", b.dataset.j === jenis); });
+    }
+    $$(el, "[data-j]").forEach(function (b) { b.onclick = function () { jenis = b.dataset.j; draw(); }; });
+    var sl = el.querySelector("input"); sl.addEventListener("input", function () { T = +sl.value; el.querySelector(".val").textContent = T; draw(); });
+    loop(el, function (dt) { ph += dt; draw(); });
+  };
+  A.hole = function (el) {
+    var N = 9, h = 0, auto = false, t = 0, lompat = -1;
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 150"><g class="g"></g></svg><div class="readout hr"></div><div class="ctrl"><button class="btn sm" data-a="step">Langkah →</button><button class="btn sm ghost" data-a="auto">▶ Otomatis</button><button class="btn sm ghost" data-a="reset">Ulang</button></div>';
+    function draw() {
+      var s = '<rect x="6" y="40" width="26" height="60" rx="4" fill="#fbe1dc" stroke="' + RED + '"/>' + txt(19, 76, "+", { size: 18, b: 1, c: RED }) + '<rect x="308" y="40" width="26" height="60" rx="4" fill="#dbe7fb" stroke="' + BLU + '"/>' + txt(321, 76, "−", { size: 18, b: 1, c: BLU });
+      for (var i = 0; i < N; i++) { var x = 50 + i * 31; s += '<circle cx="' + x + '" cy="70" r="12" fill="#eef1ee" stroke="#9aa5a0"/>' + txt(x, 105, "Si", { size: 9, c: MUT }); s += i === h ? '<circle cx="' + x + '" cy="70" r="7" fill="none" stroke="' + RED + '" stroke-width="2.2" stroke-dasharray="3 2"/>' : '<circle cx="' + x + '" cy="70" r="6" fill="#f2c230" stroke="#a37b00"/>'; }
+      if (lompat >= 0) s += arrow(50 + (lompat + 1) * 31 - 4, 50, 50 + lompat * 31 + 6, 50, COP);
+      s += txt(110, 132, "← elektron valensi melompat", { size: 11, c: COP }) + txt(250, 132, "hole bergerak →", { size: 11, c: RED });
+      el.querySelector(".g").innerHTML = s;
+      el.querySelector(".hr").innerHTML = "Hole di posisi " + (h + 1) + " dari " + N + ". Elektron hanya berpindah satu jarak atom, tetapi hole tampak berjalan ke arah terminal −.";
+    }
+    function step() { if (h >= N - 1) { h = 0; lompat = -1; } else { lompat = h; h++; } draw(); }
+    $$(el, "button").forEach(function (b) { b.onclick = function () { if (b.dataset.a === "step") step(); if (b.dataset.a === "reset") { h = 0; lompat = -1; draw(); } if (b.dataset.a === "auto") { auto = !auto; b.textContent = auto ? "❚❚ Berhenti" : "▶ Otomatis"; } }; });
+    draw(); loop(el, function (dt) { if (!auto) return; t += dt; if (t > 0.9) { t = 0; step(); } });
+  };
+  A.deplesi = function (el) {
+    var cols = 6, rows = 4, w = 0, target = 0, t = 0;
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 230"><g class="g"></g></svg><div class="readout dr"></div><div class="ctrl"><button class="btn sm" data-a="go">Satukan P dan N</button><button class="btn sm ghost" data-a="reset">Pisahkan lagi</button></div>';
+    function draw() {
+      var s = "", cx = 170, cw = 24;
+      s += '<rect x="20" y="30" width="150" height="140" fill="#fde8e6" stroke="#e3b5ad"/><rect x="170" y="30" width="150" height="140" fill="#e3ecfb" stroke="#a8bfe6"/>';
+      var dw = w * cw; if (dw > 0) s += '<rect x="' + (cx - dw) + '" y="30" width="' + 2 * dw + '" height="140" fill="#f3efe2" stroke="' + COP + '" stroke-dasharray="4 3"/>';
+      for (var c = 0; c < cols; c++) for (var r = 0; r < rows; r++) {
+        var y = 52 + r * 32, xp = cx - 14 - c * cw, xn = cx + 14 + c * cw, kosong = c < Math.floor(w + 1e-6);
+        s += txt(xp, y + 15, "−", { size: 11, c: RED }) + txt(xn, y + 15, "+", { size: 11, c: BLU });   // ion tetap
+        if (!kosong) { s += '<circle cx="' + xp + '" cy="' + (y + 2) + '" r="5.5" fill="none" stroke="' + RED + '" stroke-width="2"/>'; s += '<circle cx="' + xn + '" cy="' + (y + 2) + '" r="5" fill="' + BLU + '"/>'; }
+      }
+      s += txt(95, 22, "Tipe P: hole ○, ion −", { size: 10, b: 1 }) + txt(245, 22, "Tipe N: elektron ●, ion +", { size: 10, b: 1 });
+      if (w >= target && target > 0) { s += arrow(cx + dw - 4, 190, cx - dw + 4, 190, RED) + txt(cx, 206, "medan listrik E (dari + ke −)", { size: 10.5, c: RED }) + txt(cx, 222, "barrier potential V₀ ≈ 0,7 V (Si)", { size: 11, b: 1 }); }
+      el.querySelector(".g").innerHTML = s;
+      el.querySelector(".dr").textContent = target === 0 ? "P dan N masih terpisah: keduanya netral." : w < target ? "Elektron dari N berdifusi ke P dan berekombinasi dengan hole…" : "Setimbang: tersisa ion tetap (+ di sisi N, − di sisi P) = daerah deplesi. Medan listriknya menahan difusi berikutnya.";
+    }
+    $$(el, "button").forEach(function (b) { b.onclick = function () { if (b.dataset.a === "go") { target = 2; } else { target = 0; w = 0; } draw(); }; });
+    draw(); loop(el, function (dt) { if (w < target) { t += dt; if (t > 0.05) { t = 0; w = Math.min(target, w + 0.04); draw(); } } });
+  };
+  A.bias = function (el) {
+    var maju = true, V = 0.5, ph = 0;
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 250"><g class="g"></g></svg><div class="readout br"></div><div class="ctrl"><button class="btn sm" data-b="1">Bias maju</button><button class="btn sm ghost" data-b="0">Bias mundur</button>' + slider("V", 0, 0.8, 0.05, V, "V") + "</div>";
+    var sl = el.querySelector("input");
+    function arus() { return maju ? 1e-9 * (Math.exp(V / 0.0468) - 1) : -1e-9 * (1 - Math.exp(-V / 0.0468)); }
+    function draw() {
+      var w0 = 26, w = maju ? Math.max(4, w0 * (1 - V / 0.75)) : w0 * Math.sqrt(1 + V / 0.7), cx = 170, s = "";
+      s += '<rect x="40" y="30" width="130" height="70" fill="#fde8e6" stroke="#e3b5ad"/><rect x="170" y="30" width="130" height="70" fill="#e3ecfb" stroke="#a8bfe6"/><rect x="' + (cx - w) + '" y="30" width="' + 2 * w + '" height="70" fill="#f3efe2" stroke="' + COP + '" stroke-dasharray="4 3"/>';
+      s += txt(80, 70, "P", { size: 20, b: 1, c: RED }) + txt(260, 70, "N", { size: 20, b: 1, c: BLU }) + txt(cx, 116, "deplesi " + (maju ? "menyempit" : "melebar"), { size: 10.5, c: COP });
+      var kiri = maju ? "+" : "−", kanan = maju ? "−" : "+";
+      s += '<path class="w" d="M40 65 H20 V160 H140" fill="none" stroke="' + INK + '" stroke-width="2"/><path d="M200 160 H320 V65 H300" fill="none" stroke="' + INK + '" stroke-width="2"/>';
+      s += line(150, 145, 150, 175, INK, 2.6) + line(160, 152, 160, 168, INK, 4) + line(140, 160, 150, 160) + line(160, 160, 200, 160);
+      s += txt(maju ? 142 : 168, 140, "+", { b: 1, size: 13 }) + txt(cx - 15, 192, V.toFixed(2).replace(".", ",") + " V", { size: 12, b: 1 });
+      s += txt(26, 56, kiri, { size: 14, b: 1, c: kiri === "+" ? RED : BLU }) + txt(314, 56, kanan, { size: 14, b: 1, c: kanan === "+" ? RED : BLU });
+      var I = arus(), mA = I * 1000, frac = maju ? Math.max(0, Math.min(1, Math.log10(1 + mA * 1000) / Math.log10(1 + 30000))) : 0.02;
+      s += txt(40, 222, "Arus", { a: "start", size: 11, b: 1 }) + '<rect x="80" y="212" width="220" height="12" rx="6" fill="#e6ebe8"/><rect x="80" y="212" width="' + (220 * frac) + '" height="12" rx="6" fill="' + (maju ? COP : "#9aa5a0") + '"/>';
+      el.querySelector(".g").innerHTML = s;
+      var teks = maju ? (V < 0.55 ? "Tegangan belum melewati barrier (~0,7 V Si): arus masih sangat kecil." : "Tegangan mendekati/melewati barrier: arus naik tajam.") : "Bias mundur: pembawa mayoritas tertarik menjauhi junction, deplesi melebar, arus ≈ 0 (hanya arus bocor ~nA).";
+      el.querySelector(".br").innerHTML = "I ≈ <b>" + (maju ? (mA >= 1 ? Engine.fmt(mA, 2) + " mA" : mA >= 0.001 ? Engine.fmt(mA * 1000, 2) + " µA" : "≈ 0") : "−1 nA (bocor)") + "</b> · " + teks;
+      $$(el, "[data-b]").forEach(function (b) { b.classList.toggle("ghost", (b.dataset.b === "1") !== maju); });
+    }
+    $$(el, "[data-b]").forEach(function (b) { b.onclick = function () { maju = b.dataset.b === "1"; sl.max = maju ? 0.8 : 10; sl.step = maju ? 0.05 : 0.5; if (!maju && V < 1) V = 5; if (maju && V > 0.8) V = 0.5; sl.value = V; el.querySelector(".val").textContent = String(V).replace(".", ","); draw(); }; });
+    sl.addEventListener("input", function () { V = +sl.value; el.querySelector(".val").textContent = String(V).replace(".", ","); draw(); });
+    draw();
+  };
+  A.tebakmaterial = function (el) {
+    var M = [["Tembaga (Cu)", "Konduktor"], ["Karet", "Isolator"], ["Silikon (Si)", "Semikonduktor"], ["Emas (Au)", "Konduktor"], ["Kaca", "Isolator"], ["Germanium (Ge)", "Semikonduktor"], ["Aluminium (Al)", "Konduktor"], ["Mika", "Isolator"], ["Galium arsenida (GaAs)", "Semikonduktor"]];
+    var warna = { Konduktor: "#DDEEE5", Isolator: "#F8E1DE", Semikonduktor: "#F6E7D8" };
+    el.innerHTML = '<div class="tebak">' + M.map(function (m, i) { return '<button class="tk" data-i="' + i + '"><b>' + m[0] + '</b><span>klik untuk menebak</span></button>'; }).join("") + '</div><p class="small center">Tebak dulu dalam hati, lalu klik kartunya.</p>';
+    $$(el, ".tk").forEach(function (b) { b.onclick = function () { var m = M[+b.dataset.i]; b.style.background = warna[m[1]]; b.querySelector("span").textContent = m[1]; b.classList.add("buka"); }; });
+  };
   function mount(root) { $$(root, "[data-anim]").forEach(function (el) { var fn = A[el.dataset.anim]; if (fn && !el.dataset.on) { el.dataset.on = 1; el.classList.add("anim"); try { fn(el); } catch (e) { el.textContent = "(animasi gagal dimuat: " + e.message + ")"; } } }); }
   return { gambar: gambar, mount: mount, parseSpec: parseSpec, fR: fR };
 })();

@@ -78,9 +78,21 @@ var Engine = (function () {
   function newSeed() { return Math.floor(Math.random() * 2147483646) + 1; }
 
   // format angka gaya Indonesia (koma desimal)
-  function fmt(x, d) {
+  var SUP = { "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹", "-": "⁻" };
+  /** notasi ilmiah: 2,25 × 10⁴  (d = jumlah desimal mantissa) */
+  function sci(x, d) {
     if (typeof x !== "number" || !isFinite(x)) return String(x);
-    if (d == null) { var a = Math.abs(x); d = a === 0 ? 0 : a >= 100 ? 1 : a >= 10 ? 2 : a >= 1 ? 3 : 4; }
+    if (x === 0) return "0";
+    var e = Math.floor(Math.log(Math.abs(x)) / Math.LN10), m = x / Math.pow(10, e);
+    if (Math.abs(+m.toFixed(d)) >= 10) { m /= 10; e += 1; }
+    var ms = fmt(m, d), es = String(e).split("").map(function (c) { return SUP[c]; }).join("");
+    if (e === 0) return ms;
+    return (ms === "1" ? "" : ms + " × ") + "10" + es;
+  }
+  function fmt(x, d) {
+    if (typeof d === "string") { if (d.charAt(0) === "s") return sci(x, +d.slice(1) || 2); d = +d; }
+    if (typeof x !== "number" || !isFinite(x)) return String(x);
+    if (d == null) { var a = Math.abs(x); if (a !== 0 && (a >= 1e7 || a < 1e-4)) return sci(x, 3); d = a === 0 ? 0 : a >= 100 ? 1 : a >= 10 ? 2 : a >= 1 ? 3 : 4; }
     var s = x.toFixed(d);
     if (s.indexOf(".") >= 0) s = s.replace(/0+$/, "").replace(/\.$/, "");
     if (s === "-0") s = "0";
@@ -107,8 +119,9 @@ var Engine = (function () {
     throw new Error("Syarat variabel tidak pernah terpenuhi: " + cond);
   }
   function fill(text, v) {
-    return String(text == null ? "" : text).replace(/\{=([^}:]+)(?::(\d+))?\}/g, function (_, e, d) { return fmt(evaluate(e, v), d == null ? undefined : +d); })
-      .replace(/\{([A-Za-z_][A-Za-z0-9_]*)(?::(\d+))?\}/g, function (all, n, d) { return Object.prototype.hasOwnProperty.call(v, n) ? fmt(v[n], d == null ? undefined : +d) : all; });
+    var dd = function (d) { return d == null ? undefined : d.charAt(0) === "s" ? d : +d; };
+    return String(text == null ? "" : text).replace(/\{=([^}:]+)(?::(s?\d+))?\}/g, function (_, e, d) { return fmt(evaluate(e, v), dd(d)); })
+      .replace(/\{([A-Za-z_][A-Za-z0-9_]*)(?::(s?\d+))?\}/g, function (all, n, d) { return Object.prototype.hasOwnProperty.call(v, n) ? fmt(v[n], dd(d)) : all; });
   }
   function shuffle(a, r) { a = a.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)); var x = a[i]; a[i] = a[j]; a[j] = x; } return a; }
   var split = function (s) { return String(s || "").split("||").map(function (x) { return x.trim(); }).filter(function (x) { return x !== ""; }); };
@@ -144,9 +157,9 @@ var Engine = (function () {
     } else if (tipe === "JODOH") {
       var pairs = split(item.opsi).map(function (p) { var a = p.split("=>"); return [fill(a[0].trim(), v), fill((a[1] || "").trim(), v)]; });
       out.kiri = pairs.map(function (p) { return p[0]; });
-      var ord = shuffle(pairs.map(function (_, i) { return i; }), r);
-      out.opsi = ord.map(function (i) { return pairs[i][1]; });
-      out.key = pairs.map(function (_, i) { return ord.indexOf(i); });
+      var uniq = []; pairs.forEach(function (p) { if (uniq.indexOf(p[1]) < 0) uniq.push(p[1]); });   // pilihan kanan boleh kembar (mis. dua "Isolator")
+      out.opsi = shuffle(uniq, r);
+      out.key = pairs.map(function (p) { return out.opsi.indexOf(p[1]); });
     } else if (tipe === "URUT") {
       var steps = split(item.opsi).map(function (o) { return fill(o, v); });
       var o2 = shuffle(steps.map(function (_, i) { return i; }), r);
@@ -156,7 +169,13 @@ var Engine = (function () {
     } else throw new Error("Tipe soal tidak dikenal: " + tipe);
     return out;
   }
-  function parseNum(x) { var t = String(x == null ? "" : x).trim().replace(/\s/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", "."); return t === "" ? NaN : Number(t); }
+  function parseNum(x) {
+    var t = String(x == null ? "" : x).trim().replace(/\s/g, "").replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+/g, function (s) { var o = ""; for (var i = 0; i < s.length; i++) for (var k in SUP) if (SUP[k] === s[i]) o += k; return "^" + o; });
+    t = t.replace(/[x×*]10\^?\(?(-?\d+)\)?$/i, "e$1").replace(/^10\^(-?\d+)$/, "1e$1");   // 2,25x10^4 · 2,25×10⁴ · 10^16
+    if (!/e/i.test(t)) t = t.replace(/\.(?=\d{3}(\D|$))/g, "");
+    t = t.replace(",", ".");
+    return t === "" ? NaN : Number(t);
+  }
   /** skor 0..1 */
   function grade(inst, ans) {
     if (ans == null || ans === "") return 0;
@@ -194,6 +213,6 @@ var Engine = (function () {
     if (chosen.length < total) pool(null).slice(0, total - chosen.length).forEach(function (it) { used[it.id] = 1; chosen.push(it); });
     return shuffle(chosen, r).slice(0, total);
   }
-  return { evaluate: evaluate, genVars: genVars, fill: fill, fmt: fmt, instantiate: instantiate, grade: grade, publicView: publicView, keyText: keyText, pick: pick, newSeed: newSeed, rng: rng, parseNum: parseNum, shuffle: shuffle };
+  return { sci: sci, evaluate: evaluate, genVars: genVars, fill: fill, fmt: fmt, instantiate: instantiate, grade: grade, publicView: publicView, keyText: keyText, pick: pick, newSeed: newSeed, rng: rng, parseNum: parseNum, shuffle: shuffle };
 })();
 if (typeof module !== "undefined") module.exports = Engine;
