@@ -691,6 +691,180 @@ var Visual = (function () {
     }
     return svg(340, 180, line(x0, y0, x0 + W, y0, "#c7cfca", 1) + poly(pin.join(" "), "#9aa5a0", 1.4).replace("/>", ' stroke-dasharray="4 4"/>') + poly(pts.join(" "), COP, 2.8) + txt(x0, 176, "2 periode input (40 ms)", { size: 9.5, a: "start", c: MUT }));
   };
+  /* =================== ANIMASI MATERI 5: LIMITER, CLAMPER, DIODA KHUSUS =================== */
+  function diodaV(x, y1, y2, arah, warna) {   // arah 1: arus ke bawah (anoda atas); -1: arus ke atas
+    var c = warna || INK, m = (y1 + y2) / 2, s = line(x, y1, x, m - 11, c) + line(x, m + 11, x, y2, c);
+    if (arah >= 0) s += '<polygon points="' + (x - 11) + "," + (m - 11) + " " + (x + 11) + "," + (m - 11) + " " + x + "," + (m + 9) + '" fill="' + c + '"/>' + line(x - 12, m + 10, x + 12, m + 10, c, 3);
+    else s += '<polygon points="' + (x - 11) + "," + (m + 11) + " " + (x + 11) + "," + (m + 11) + " " + x + "," + (m - 9) + '" fill="' + c + '"/>' + line(x - 12, m - 10, x + 12, m - 10, c, 3);
+    return s;
+  }
+  function acSrc(x, y1, y2, lab) { var m = (y1 + y2) / 2; return line(x, y1, x, m - 14) + line(x, m + 14, x, y2) + '<circle cx="' + x + '" cy="' + m + '" r="14" fill="#fff" stroke="' + INK + '" stroke-width="2"/><path d="M' + (x - 9) + " " + m + " q4.5 -9 9 0 t9 0" + '" fill="none" stroke="' + INK + '" stroke-width="1.8"/>' + (lab ? txt(x + 19, m + 4, lab, { a: "start", size: 10.5, b: 1 }) : ""); }
+  function capH(x, y) { return line(x - 4, y - 13, x - 4, y + 13, INK, 3) + line(x + 4, y - 13, x + 4, y + 13, INK, 3); }
+  // cabang dioda (+ baterai bias opsional) dari node atas ke ground; pol: +1 limiter/clamper positif-atas
+  function cabangD(x, yT, yB, arah, vb, plusAtas, on, noLab) {
+    var c = on ? COP : INK;
+    if (!vb) return diodaV(x, yT, yB, arah, c);
+    return diodaV(x, yT, yT + 58, arah, c) + batTopP(x, yT + 58, yB, noLab ? "" : f(vb, 1) + " V", plusAtas);
+  }
+  function limiterSVG(mode, vb, st) {   // st: {up:bool, dn:bool} dioda yang sedang menghantar
+    st = st || {};
+    var s = acSrc(30, 40, 160, "V_in") + line(30, 40, 70, 40) + resH(70, 140, 40) + txt(105, 26, "R1", { size: 10.5, b: 1 }) + line(140, 40, 300, 40) + line(30, 160, 300, 160) + dot(175, 40) + dot(175, 160) + txt(175, 30, "A", { size: 10.5, b: 1, c: MUT });
+    if (mode === "pos") s += cabangD(175, 40, 160, 1, 0, true, st.up);
+    else if (mode === "neg") s += cabangD(175, 40, 160, -1, 0, true, st.dn);
+    else if (mode === "bias") s += cabangD(175, 40, 160, 1, vb, true, st.up);
+    else if (mode === "nbias") s += cabangD(175, 40, 160, -1, vb, false, st.dn);
+    else { s += cabangD(165, 40, 160, 1, vb, true, st.up, 1) + dot(220, 40) + dot(220, 160) + cabangD(220, 40, 160, -1, vb, false, st.dn); }
+    s += resV(285, 40, 160) + txt(300, 104, "R_L", { size: 10.5, a: "start", b: 1 }) + dot(285, 40) + dot(285, 160) + txt(330, 36, "V_out", { size: 10, a: "end", c: COP, b: 1 });
+    return s;
+  }
+  function clamperSVG(mode, vb, on) {
+    var s = acSrc(30, 40, 160, "V_in") + line(30, 40, 95, 40) + capH(100, 40) + txt(100, 22, "C", { size: 10.5, b: 1 }) + line(104, 40, 300, 40) + line(30, 160, 300, 160) + dot(175, 40) + dot(175, 160);
+    s += cabangD(175, 40, 160, mode === "pos" ? -1 : 1, vb ? Math.abs(vb) : 0, vb >= 0, on);
+    s += resV(285, 40, 160) + txt(300, 104, "R_L", { size: 10.5, a: "start", b: 1 }) + dot(285, 40) + dot(285, 160) + txt(330, 36, "V_out", { size: 10, a: "end", c: COP, b: 1 });
+    return s;
+  }
+  function batasLimiter(mode, vb) { var hi = Infinity, lo = -Infinity; if (mode === "pos") hi = 0.7; if (mode === "neg") lo = -0.7; if (mode === "bias") hi = vb + 0.7; if (mode === "nbias") lo = -(vb + 0.7); if (mode === "ganda") { hi = vb + 0.7; lo = -(vb + 0.7); } return { hi: hi, lo: lo }; }
+  function gelPlot(fnIn, fnOut, Vmax, opt) {   // plot 2 periode; Vmax = skala
+    opt = opt || {}; var x0 = 30, y0 = 90, W = 290, H = 72, pi = [], po = [], s = "";
+    for (var k = 0; k <= 240; k++) { var t = k / 240 * 2, x = x0 + k / 240 * W; pi.push(x + "," + (y0 - fnIn(t) / Vmax * H)); po.push(x + "," + (y0 - fnOut(t, k) / Vmax * H)); }
+    s += line(x0, y0, x0 + W, y0, "#c7cfca", 1) + txt(x0 - 4, y0 + 4, "0", { size: 9.5, a: "end", c: MUT });
+    (opt.levels || []).forEach(function (L) { if (!isFinite(L.v)) return; var y = y0 - L.v / Vmax * H; s += line(x0, y, x0 + W, y, L.c || RED, 1).replace("/>", ' stroke-dasharray="4 3"/>') + txt(x0 + W, y - 3, L.t, { size: 9.5, a: "end", c: L.c || RED, b: 1 }); });
+    s += poly(pi.join(" "), "#9aa5a0", 1.5).replace("/>", ' stroke-dasharray="5 4"/>') + poly(po.join(" "), COP, 2.8) + txt(x0, 12, "V_in (putus-putus) · V_out (tembaga)", { size: 9.5, a: "start", c: MUT });
+    return s;
+  }
+  G.limiter = function (p) { return svg(340, 180, limiterSVG(p.mode || "pos", p.Vb || 0)); };
+  G.clamper = function (p) { return svg(340, 180, clamperSVG(p.mode || "pos", p.Vb || 0)); };
+  G.klip = function (p) {   // gelombang limiter: Vp, mode, Vb
+    var Vp = p.Vp || 10, b = batasLimiter(p.mode || "pos", p.Vb || 0), V = Vp * 1.15;
+    return svg(340, 180, gelPlot(function (t) { return Vp * Math.sin(2 * Math.PI * t); }, function (t) { return Math.max(b.lo, Math.min(b.hi, Vp * Math.sin(2 * Math.PI * t))); }, V, { levels: [{ v: b.hi, t: "+" + f(b.hi, 1) + " V" }, { v: b.lo, t: f(b.lo, 1) + " V" }] }));
+  };
+  G.simboldioda = function () {
+    var it = [["Biasa", 0], ["Zener", 1], ["LED", 2], ["Fotodioda", 3], ["Schottky", 4], ["Varaktor", 5]], s = "";
+    it.forEach(function (d, i) {
+      var cx = 60 + (i % 3) * 110, cy = 40 + Math.floor(i / 3) * 85, c = COP;
+      s += line(cx - 40, cy, cx - 12, cy) + '<polygon points="' + (cx - 12) + "," + (cy - 12) + " " + (cx - 12) + "," + (cy + 12) + " " + (cx + 10) + "," + cy + '" fill="' + c + '"/>' + line(cx + 11, cy, cx + 40, cy);
+      var k = d[1], x = cx + 11;
+      if (k === 1) s += '<polyline points="' + (x - 5) + "," + (cy - 16) + " " + x + "," + (cy - 13) + " " + x + "," + (cy + 13) + " " + (x + 5) + "," + (cy + 16) + '" fill="none" stroke="' + INK + '" stroke-width="3"/>';
+      else if (k === 4) s += '<polyline points="' + (x + 6) + "," + (cy - 9) + " " + (x + 6) + "," + (cy - 13) + " " + x + "," + (cy - 13) + " " + x + "," + (cy + 13) + " " + (x - 6) + "," + (cy + 13) + " " + (x - 6) + "," + (cy + 9) + '" fill="none" stroke="' + INK + '" stroke-width="3"/>';
+      else s += line(x, cy - 13, x, cy + 13, INK, 3);
+      if (k === 5) s += line(x + 7, cy - 13, x + 7, cy + 13, INK, 3) + line(x + 7, cy, x + 29, cy, "#fffdf6", 3) + line(x + 7, cy, cx + 40, cy);
+      if (k === 2) s += arrow(cx, cy - 16, cx + 12, cy - 30, "#d97706") + arrow(cx + 8, cy - 14, cx + 20, cy - 28, "#d97706");
+      if (k === 3) s += arrow(cx + 12, cy - 30, cx, cy - 16, BLU) + arrow(cx + 20, cy - 28, cx + 8, cy - 14, BLU);
+      s += txt(cx, cy + 32, d[0], { size: 11, b: 1 });
+    });
+    return svg(340, 170, s);
+  };
+  A.limiter = function (el) {
+    var mode = el.dataset.mode || "pos", Vp = 10, vb = 3, t = 0, play = true;
+    var ms = [["pos", "Positif"], ["neg", "Negatif"], ["bias", "Berbias +"], ["nbias", "Berbias −"], ["ganda", "Ganda ±"]];
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 180"><g class="c"></g></svg><svg class="diag" viewBox="0 0 340 175"><g class="w"></g></svg><div class="readout lr"></div><div class="ctrl">' + ms.map(function (m) { return '<button class="btn sm ghost" data-m="' + m[0] + '">' + m[1] + "</button>"; }).join("") + '<button class="btn sm ghost" data-a="p">❚❚</button></div><div class="ctrl">' + slider("V_p", 2, 20, 1, Vp, "V") + slider("V_bias", 0, 10, 0.5, vb, "V") + "</div>";
+    var ins = $$(el, "input");
+    function draw() {
+      var b = batasLimiter(mode, vb), V = Math.max(Vp, isFinite(b.hi) ? b.hi : 0) * 1.15, vi = Vp * Math.sin(2 * Math.PI * t), st = { up: vi > b.hi, dn: vi < b.lo };
+      el.querySelector(".c").innerHTML = limiterSVG(mode, /bias|ganda/.test(mode) ? vb : 0, st);
+      var cx = 30 + (t % 2) / 2 * 290;
+      el.querySelector(".w").innerHTML = gelPlot(function (u) { return Vp * Math.sin(2 * Math.PI * u); }, function (u) { return Math.max(b.lo, Math.min(b.hi, Vp * Math.sin(2 * Math.PI * u))); }, V, { levels: [{ v: b.hi, t: "+" + f(b.hi, 1) + " V" }, { v: b.lo, t: f(b.lo, 1) + " V" }] }) + line(cx, 18, cx, 170, BLU, 1.2);
+      var hi = Math.min(Vp, b.hi), lo = Math.max(-Vp, b.lo);
+      el.querySelector(".lr").innerHTML = "Batas atas: <b>" + (isFinite(b.hi) ? "+" + f(b.hi, 1) + " V" : "tidak ada") + "</b> · batas bawah: <b>" + (isFinite(b.lo) ? f(b.lo, 1) + " V" : "tidak ada") + "</b> · V<sub>out</sub> dari " + f(lo, 1) + " V sampai +" + f(hi, 1) + " V" + (st.up || st.dn ? ' · <span class="tag mid">dioda menghantar → terpotong</span>' : "");
+      $$(el, "[data-m]").forEach(function (x) { x.classList.toggle("on", x.dataset.m === mode); });
+    }
+    $$(el, "[data-m]").forEach(function (x) { x.onclick = function () { mode = x.dataset.m; draw(); }; });
+    el.querySelector("[data-a=p]").onclick = function () { play = !play; this.textContent = play ? "❚❚" : "▶"; };
+    ins.forEach(function (i) { i.addEventListener("input", function () { Vp = +ins[0].value; vb = +ins[1].value; $$(el, ".val")[0].textContent = Vp; $$(el, ".val")[1].textContent = f(vb, 1); draw(); }); });
+    draw(); loop(el, function (dt) { if (play) { t += dt * 0.3; draw(); } });
+  };
+  function simClamp(mode, Vp, vb, tauT, N, per) {   // simulasi clamper dari Vc = 0; tauT = R_L·C / T
+    var out = [], vc = 0, L = mode === "pos" ? vb - 0.7 : vb + 0.7, dt = per / N;
+    for (var k = 0; k <= N; k++) {
+      var t = k * dt, vi = Vp * Math.sin(2 * Math.PI * t);
+      vc *= Math.exp(-dt / tauT);
+      var vo = vi + vc;
+      if (mode === "pos" && vo < L) { vc = L - vi; vo = L; }
+      if (mode === "neg" && vo > L) { vc = L - vi; vo = L; }
+      out.push(vo);
+    }
+    return out;
+  }
+  A.clamper = function (el) {
+    var mode = el.dataset.mode || "pos", Vp = 10, vb = 0, ti = 3, taus = [0.2, 1, 10, 100];
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 180"><g class="c"></g></svg><svg class="diag" viewBox="0 0 340 190"><g class="w"></g></svg><div class="readout cr"></div><div class="ctrl"><button class="btn sm ghost" data-m="pos">Clamper positif</button><button class="btn sm ghost" data-m="neg">Clamper negatif</button></div><div class="ctrl">' + slider("V_p", 2, 15, 1, Vp, "V") + slider("V_bias", -5, 5, 0.5, vb, "V") + slider("R_L·C / T", 0, 3, 1, ti, "") + "</div>";
+    var ins = $$(el, "input");
+    function draw() {
+      Vp = +ins[0].value; vb = +ins[1].value; var tau = taus[+ins[2].value]; $$(el, ".val")[0].textContent = Vp; $$(el, ".val")[1].textContent = f(vb, 1); $$(el, ".val")[2].textContent = f(tau, 1);
+      el.querySelector(".c").innerHTML = clamperSVG(mode, vb, false);
+      var N = 480, per = 4, o = simClamp(mode, Vp, vb, tau, N, per), V = 2 * Vp + Math.abs(vb) + 1, x0 = 30, y0 = 95, W = 290, H = 80, pi = [], po = [];
+      for (var k = 0; k <= N; k++) { var x = x0 + k / N * W; pi.push(x + "," + (y0 - Vp * Math.sin(2 * Math.PI * k / N * per) / V * H)); po.push(x + "," + (y0 - o[k] / V * H)); }
+      var L = mode === "pos" ? vb - 0.7 : vb + 0.7, H2 = mode === "pos" ? L + 2 * Vp : L - 2 * Vp, ss = line(x0, y0, x0 + W, y0, "#c7cfca", 1) + txt(x0 - 4, y0 + 4, "0", { size: 9.5, a: "end", c: MUT });
+      [[L, f(L, 1) + " V"], [H2, f(H2, 1) + " V"]].forEach(function (q) { var y = y0 - q[0] / V * H; ss += line(x0, y, x0 + W, y, RED, 1).replace("/>", ' stroke-dasharray="4 3"/>') + txt(x0 + W, y + (q[0] > 0 ? -3 : 11), q[1], { size: 9.5, a: "end", c: RED, b: 1 }); });
+      ss += poly(pi.join(" "), "#9aa5a0", 1.5).replace("/>", ' stroke-dasharray="5 4"/>') + poly(po.join(" "), COP, 2.6) + txt(x0, 186, "4 periode sejak dinyalakan (C mula-mula kosong)", { size: 9.5, a: "start", c: MUT });
+      el.querySelector(".w").innerHTML = ss;
+      el.querySelector(".cr").innerHTML = "Level DC (rata-rata) bergeser dari 0 ke ≈ <b>" + f(mode === "pos" ? L + Vp : L - Vp, 1) + " V</b> · V<sub>out</sub> tunak: <b>" + f(Math.min(L, H2), 1) + " V sampai " + f(Math.max(L, H2), 1) + " V</b> · " + (tau >= 10 ? '<span class="tag ok">R_L·C ≥ 10T: bentuk terjaga</span>' : '<span class="tag no">R_L·C terlalu kecil: C sempat kosong, bentuk rusak</span>');
+      $$(el, "[data-m]").forEach(function (x) { x.classList.toggle("on", x.dataset.m === mode); });
+    }
+    $$(el, "[data-m]").forEach(function (x) { x.onclick = function () { mode = x.dataset.m; draw(); }; });
+    ins.forEach(function (i) { i.addEventListener("input", draw); }); draw();
+  };
+  A.varaktor = function (el) {
+    var C0 = 200, Lh = 330e-6;
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 170"><g class="c"></g></svg><div class="readout vr"></div><div class="ctrl">' + slider("V_R (tegangan balik)", 0, 20, 0.5, 2, "V") + "</div>";
+    var sl = el.querySelector("input");
+    function draw() {
+      var VR = +sl.value; el.querySelector(".val").textContent = f(VR, 1);
+      var k = Math.sqrt(1 + VR / 0.7), C = C0 / k, fr = 1 / (2 * Math.PI * Math.sqrt(Lh * C * 1e-12)), w = 14 * k;
+      var s = '<rect x="40" y="35" width="' + (130 - w / 2) + '" height="80" fill="#e3ecfb" stroke="#9aa5a0"/><rect x="' + (170 + w / 2) + '" y="35" width="' + (130 - w / 2) + '" height="80" fill="#f6e7d8" stroke="#9aa5a0"/><rect x="' + (170 - w / 2) + '" y="35" width="' + w + '" height="80" fill="#fffdf6" stroke="' + COP + '" stroke-dasharray="4 3"/>';
+      s += txt(80, 80, "P", { size: 16, b: 1 }) + txt(260, 80, "N", { size: 16, b: 1 }) + txt(170, 28, "deplesi = dielektrik", { size: 10, c: COP }) + arrow(170 - w / 2 - 2, 128, 170 + w / 2 + 2, 128, COP) + txt(170, 148, "lebar ∝ √(1 + V_R/0,7)", { size: 9.5, c: MUT });
+      el.querySelector(".c").innerHTML = s;
+      el.querySelector(".vr").innerHTML = "C = " + C0 + " pF / " + f(k, 2) + " = <b>" + f(C, 1) + " pF</b> · dengan L = 330 µH: f<sub>r</sub> = 1/(2π√(LC)) = <b>" + f(fr / 1e6, 3) + " MHz</b> (gelombang AM)";
+    }
+    sl.addEventListener("input", draw); draw();
+  };
+  var E12 = [10, 12, 15, 18, 22, 27, 33, 39, 47, 56, 68, 82];
+  function e12Atas(R) { var d = Math.pow(10, Math.floor(Math.log10(R)) - 1); for (var i = 0; i < 24; i++) { var v = E12[i % 12] * d * (i >= 12 ? 10 : 1); if (v >= R - 1e-9) return v; } return R; }
+  A.led = function (el) {
+    var W = [["merah", 2.0, "#ef4444"], ["kuning", 2.1, "#f59e0b"], ["hijau", 2.2, "#22c55e"], ["biru", 3.2, "#3b82f6"], ["putih", 3.2, "#e5e7eb"]], w = 0;
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 190"><g class="c"></g></svg><table class="tabel small lt" style="margin:4px 0"></table><div class="ctrl">' + W.map(function (x, i) { return '<button class="btn sm ghost" data-w="' + i + '">' + x[0] + "</button>"; }).join("") + '</div><div class="ctrl">' + slider("V_S", 3, 24, 0.5, 5, "V") + slider("I target", 5, 20, 1, 10, "mA") + "</div>";
+    var ins = $$(el, "input");
+    function draw() {
+      var Vs = +ins[0].value, It = +ins[1].value / 1000, c = W[w]; $$(el, ".val")[0].textContent = f(Vs, 1); $$(el, ".val")[1].textContent = It * 1000;
+      var R = (Vs - c[1]) / It, ok = Vs > c[1] + 0.2, Rs = ok ? e12Atas(R) : 0, I = ok ? (Vs - c[1]) / Rs : 0, P = I * I * Rs, glow = Math.min(1, I / 0.02);
+      var s = batTopP(40, 30, 170, f(Vs, 1) + " V", true) + line(40, 30, 90, 30) + resH(90, 170, 30) + txt(130, 18, ok ? "R = " + fR(Rs) : "R = ?", { b: 1, size: 11 }) + diodaH(170, 260, 30, 1, ok ? c[2] === "#e5e7eb" ? "#94a3b8" : c[2] : "#c7cfca") + line(260, 30, 300, 30) + line(300, 30, 300, 170) + line(40, 170, 300, 170);
+      if (ok) s += '<circle cx="215" cy="30" r="' + (16 + 14 * glow) + '" fill="' + c[2] + '" opacity="' + (0.15 + 0.35 * glow) + '"/>';
+      s += arrow(210, 12, 222, 0, "#d97706") + arrow(220, 16, 232, 4, "#d97706") + txt(215, 62, "LED " + c[0] + " (V_F ≈ " + f(c[1], 1) + " V)", { size: 10.5, b: 1 });
+      el.querySelector(".c").innerHTML = s;
+      el.querySelector(".lt").innerHTML = ok ? "<tr><th>R hitung = (V<sub>S</sub> − V<sub>F</sub>)/I</th><th>Nilai standar (ke atas)</th><th>I sebenarnya</th><th>P<sub>R</sub></th></tr><tr><td>(" + f(Vs, 1) + " − " + f(c[1], 1) + ")/" + It * 1000 + " mA = " + f(R, 0) + " Ω</td><td><b>" + fR(Rs) + "</b></td><td>" + f(I * 1000, 2) + " mA</td><td>" + f(P * 1000, 1) + " mW" + (P > 0.2 ? ' <span class="tag mid">pakai ½ W</span>' : "") + "</td></tr>" : '<tr><td><span class="tag no">V_S terlalu kecil: LED tidak menyala</span></td></tr>';
+      $$(el, "[data-w]").forEach(function (x) { x.classList.toggle("on", +x.dataset.w === w); });
+    }
+    $$(el, "[data-w]").forEach(function (x) { x.onclick = function () { w = +x.dataset.w; draw(); }; });
+    ins.forEach(function (i) { i.addEventListener("input", draw); }); draw();
+  };
+  A.fotodioda = function (el) {
+    var Vs = 5, k = 0.05, Id = 0.005;   // µA per lux, arus gelap µA
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 190"><g class="c"></g></svg><div class="readout fd"></div><div class="ctrl">' + slider("Cahaya", 0, 1000, 10, 200, "lux") + slider("R", 1, 220, 1, 47, "kΩ") + "</div>";
+    var ins = $$(el, "input");
+    function draw() {
+      var lux = +ins[0].value, R = +ins[1].value * 1000; $$(el, ".val")[0].textContent = lux; $$(el, ".val")[1].textContent = R / 1000;
+      var I = (Id + k * lux) * 1e-6, Vo = Math.min(Vs - 0.1, I * R), sat = I * R >= Vs - 0.1;
+      var s = batTopP(40, 30, 170, "5 V", true) + line(40, 30, 150, 30) + line(150, 30, 150, 40) + diodaV(150, 40, 100, -1, COP) + line(150, 100, 150, 110) + resV(150, 110, 170) + line(40, 170, 150, 170) + dot(150, 110) + line(150, 110, 260, 110) + txt(165, 145, "R = " + fR(R), { size: 10.5, a: "start", b: 1 }) + txt(205, 102, "V_out = " + f(Vo, 2) + " V", { size: 11, b: 1, c: GRN });
+      var n = Math.round(lux / 200);
+      for (var i = 0; i < Math.max(1, n); i++) s += arrow(210 - i * 4, 22 + i * 10, 172, 58 + i * 4, lux ? "#d97706" : "#e5e7eb");
+      s += txt(214, 20, lux + " lux", { size: 10, a: "start", c: "#d97706", b: 1 }) + txt(128, 74, "K", { size: 9.5, c: MUT }) + txt(128, 96, "A", { size: 9.5, c: MUT });
+      el.querySelector(".c").innerHTML = s;
+      el.querySelector(".fd").innerHTML = "Bias mundur. I<sub>λ</sub> = arus gelap + kepekaan × cahaya = " + f(Id, 3) + " + 0,05 × " + lux + " = <b>" + f(I * 1e6, 2) + " µA</b> · V<sub>out</sub> = I<sub>λ</sub> × R = <b>" + f(Vo, 2) + " V</b>" + (sat ? ' <span class="tag mid">jenuh (mendekati 5 V)</span>' : "");
+    }
+    ins.forEach(function (i) { i.addEventListener("input", draw); }); draw();
+  };
+  A.schottky = function (el) {
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 170"><g class="c"></g></svg><div class="readout sk"></div><div class="ctrl">' + slider("I beban", 0.5, 5, 0.5, 2, "A") + slider("V_out", 3, 24, 1, 5, "V") + "</div>";
+    var ins = $$(el, "input");
+    function draw() {
+      var I = +ins[0].value, Vo = +ins[1].value; $$(el, ".val")[0].textContent = f(I, 1); $$(el, ".val")[1].textContent = Vo;
+      var d = [["Silikon pn", 0.7, INK], ["Schottky", 0.3, COP]], s = "", mx = 0.7 * 5;
+      d.forEach(function (x, i) { var P = x[1] * I, w = P / mx * 220; s += txt(20, 50 + i * 60, x[0] + " (V_F " + f(x[1], 1) + " V)", { size: 10.5, a: "start", b: 1 }) + '<rect x="20" y="' + (58 + i * 60) + '" width="' + Math.max(2, w) + '" height="22" rx="4" fill="' + x[2] + '"/>' + txt(26 + w, 74 + i * 60, f(P, 2) + " W · η ≈ " + f(Vo / (Vo + x[1]) * 100, 1) + "%", { size: 10.5, a: "start" }); });
+      el.querySelector(".c").innerHTML = s + txt(20, 18, "Rugi daya per dioda: P = V_F × I", { size: 10, a: "start", c: MUT });
+      el.querySelector(".sk").innerHTML = "Hemat " + f((0.7 - 0.3) * I, 2) + " W per dioda. Pada keluaran " + Vo + " V, efisiensi naik dari " + f(Vo / (Vo + 0.7) * 100, 1) + "% ke " + f(Vo / (Vo + 0.3) * 100, 1) + "%. Makin rendah V<sub>out</sub>, makin besar manfaatnya.";
+    }
+    ins.forEach(function (i) { i.addEventListener("input", draw); }); draw();
+  };
   function mount(root) { $$(root, "[data-anim]").forEach(function (el) { var fn = A[el.dataset.anim]; if (fn && !el.dataset.on) { el.dataset.on = 1; el.classList.add("anim"); try { fn(el); } catch (e) { el.textContent = "(animasi gagal dimuat: " + e.message + ")"; } } }); }
   return { gambar: gambar, mount: mount, parseSpec: parseSpec, fR: fR };
 })();
