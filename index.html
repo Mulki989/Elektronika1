@@ -362,16 +362,18 @@ body.protect .opt,body.protect select,body.protect input,body.protect button{poi
 
 <script src="js/engine.js"></script>
 <script src="js/visual.js"></script>
+<script src="config.js"></script>
 <script>
 /* =====================================================================
- * PENGATURAN — isi URL Web app Google Apps Script di sini.
- * Kosongkan ("") untuk MODE COBA (semua data hanya di peramban).
+ * PENGATURAN ada di file config.js (API_URL dan nama folder audio).
+ * File ini (index.html) tidak perlu disunting.
  * ===================================================================== */
-const API_URL = "https://script.google.com/macros/s/AKfycbyBTgNpZrytf5Jf3856fXwSo-H7BkCHzTpz_djcpEYhKXi2lfWHiI12-pNT5XBg63kIdw/exec";
+const KONFIG = Object.assign({ API_URL: "", FOLDER_AUDIO: "audio" }, window.KONFIG || {});
+const API_URL = String(KONFIG.API_URL || "").trim();
 
-/* Daftar materi. Tambahkan file: "materi/m02.js" dst. saat materinya siap. */
+/* Daftar judul materi. Materi tersedia otomatis begitu file mXX.js ada di folder materi (Google Drive). */
 const DAFTAR = [
-  { kode: "M01", minggu: 1, judul: "Pengantar Elektronika & Dasar Rangkaian", file: "materi/m01.js" },
+  { kode: "M01", minggu: 1, judul: "Pengantar Elektronika & Dasar Rangkaian" },
   { kode: "M02", minggu: 2, judul: "Semikonduktor" },
   { kode: "M03", minggu: 3, judul: "Dioda" },
   { kode: "M04", minggu: 4, judul: "Aplikasi Dioda I" },
@@ -401,6 +403,7 @@ function toast(t, ms) { const el = $("#toast"); el.textContent = t; el.hidden = 
 function modal(html, onBind) { $("#modal-box").innerHTML = html; $("#modal").hidden = false; onBind && onBind($("#modal-box")); }
 function closeModal() { $("#modal").hidden = true; }
 const DEMO = !API_URL;
+const adaMateri = kode => ((DEMO ? Local.setelan : S.setelan || {}).materiAda || []).includes(kode);
 
 /* ============================ SERVER ============================ */
 let S = { profil: null, token: null, progres: {}, setelan: null, dosen: null };
@@ -583,7 +586,7 @@ function statusMateri(i) {
   const d = DAFTAR[i], p = S.progres[d.kode] || {}, st = S.setelan;
   const prev = i > 0 ? (S.progres[DAFTAR[i - 1].kode] || {}) : null;
   const prevOk = !prev || (st.syaratBerikut === "lulus" ? prev.ujLulus : prev.ujOk);
-  const ada = !!d.file, buka = ada && terbuka(d.kode) && prevOk;
+  const ada = adaMateri(d.kode), buka = ada && terbuka(d.kode) && prevOk;
   let alasan = !ada ? "Materi sedang disiapkan" : !terbuka(d.kode) ? "Belum dibuka dosen" : !prevOk ? "Selesaikan ujian " + DAFTAR[i - 1].kode + " dulu" : "";
   return { d, p, buka, alasan, pct: p.n ? Math.min(100, Math.round((p.s || []).length / p.n * 100)) : 0 };
 }
@@ -623,11 +626,11 @@ function homeDosen() {
   $("#h-sem").textContent = "Semester " + S.setelan.semester;
   $("#h-who").innerHTML = '<span class="dosen-badge">MODE DOSEN</span> ' + esc(S.dosen.nama) + " · aktivitas tidak tercatat";
   $("#h-sync").hidden = true; $("#h-demo").hidden = !DEMO; $("#h-resume").hidden = true;
-  $("#h-pct").textContent = DAFTAR.filter(d => d.file).length + "/" + DAFTAR.length; $("#h-bar").style.width = (DAFTAR.filter(d => d.file).length / DAFTAR.length * 100) + "%";
+  $("#h-pct").textContent = DAFTAR.filter(d => adaMateri(d.kode)).length + "/" + DAFTAR.length; $("#h-bar").style.width = (DAFTAR.filter(d => adaMateri(d.kode)).length / DAFTAR.length * 100) + "%";
   $("#h-sub").textContent = "materi sudah tersedia di aplikasi · terbuka untuk mahasiswa: " + S.setelan.materiTerbuka;
   $("#h-list").className = "dlist";
-  $("#h-list").innerHTML = DAFTAR.map(d => `<div class="dcard"><div class="mnum">${d.kode.slice(1)}</div><h3>${esc(d.judul)}<div class="small muted">Minggu ${d.minggu}${d.file ? (terbuka(d.kode) ? " · terbuka untuk mahasiswa" : " · belum dibuka untuk mahasiswa") : " · materi belum tersedia"}</div></h3>
-    <div class="acts"><button class="btn sm" data-a="materi" data-k="${d.kode}" ${d.file ? "" : "disabled"}>Buka materi</button><button class="btn sm ghost" data-a="Latihan" data-k="${d.kode}">Pratinjau latihan</button><button class="btn sm ghost" data-a="Ujian" data-k="${d.kode}">Pratinjau ujian</button><button class="btn sm ghost" data-a="Semua" data-k="${d.kode}">Semua soal</button><button class="btn sm copper" data-a="laporan" data-k="${d.kode}">Laporan</button></div></div>`).join("");
+  $("#h-list").innerHTML = DAFTAR.map(d => `<div class="dcard"><div class="mnum">${d.kode.slice(1)}</div><h3>${esc(d.judul)}<div class="small muted">Minggu ${d.minggu}${adaMateri(d.kode) ? (terbuka(d.kode) ? " · terbuka untuk mahasiswa" : " · belum dibuka untuk mahasiswa") : " · materi belum tersedia"}</div></h3>
+    <div class="acts"><button class="btn sm" data-a="materi" data-k="${d.kode}" ${adaMateri(d.kode) ? "" : "disabled"}>Buka materi</button><button class="btn sm ghost" data-a="Latihan" data-k="${d.kode}">Pratinjau latihan</button><button class="btn sm ghost" data-a="Ujian" data-k="${d.kode}">Pratinjau ujian</button><button class="btn sm ghost" data-a="Semua" data-k="${d.kode}">Semua soal</button><button class="btn sm copper" data-a="laporan" data-k="${d.kode}">Laporan</button></div></div>`).join("");
   $$("#h-list [data-a]").forEach(b => b.onclick = () => b.dataset.a === "materi" ? bukaMateri(b.dataset.k) : b.dataset.a === "laporan" ? laporan(b.dataset.k) : pratinjau(b.dataset.k, b.dataset.a));
 }
 
@@ -744,9 +747,18 @@ $("#h-theme").onclick = () => { const cur = document.documentElement.dataset.the
 function muatMateri(kode) {
   window.MATERI = window.MATERI || {};
   if (window.MATERI[kode]) return Promise.resolve(window.MATERI[kode]);
-  const d = DAFTAR.find(x => x.kode === kode);
-  return new Promise((res, rej) => { const s = document.createElement("script"); s.src = d.file + "?v=" + Date.now().toString(36).slice(0, 5); s.onload = () => window.MATERI[kode] ? res(window.MATERI[kode]) : rej(new Error("Isi materi tidak valid")); s.onerror = () => rej(new Error("File materi tidak ditemukan: " + d.file)); document.head.appendChild(s); });
+  if (DEMO) return muatLokal(kode).then(() => { if (!window.MATERI[kode]) throw new Error("File materi/" + kode.toLowerCase() + ".js tidak ditemukan."); return window.MATERI[kode]; });
+  // mode kelas: isi materi dikirim server hanya kepada pengguna yang sudah masuk
+  toast("Memuat materi…", 8000);
+  return api("materi", { materi: kode }).then(r => {
+    if (!r.ok) throw new Error(r.pesan);
+    try { new Function(r.isi)(); } catch (e) { throw new Error("Isi file materi " + kode.toLowerCase() + ".js rusak: " + e.message); }
+    if (!window.MATERI[kode]) throw new Error("File materi " + kode.toLowerCase() + ".js tidak berisi MATERI." + kode);
+    $("#toast").hidden = true;
+    return window.MATERI[kode];
+  });
 }
+function muatLokal(kode) { return new Promise(res => { const s = document.createElement("script"); s.src = "materi/" + kode.toLowerCase() + ".js"; s.onload = res; s.onerror = res; document.head.appendChild(s); }); }
 
 /* ============================ NARATOR ============================ */
 const Narator = (() => {
@@ -778,7 +790,7 @@ const Narator = (() => {
     est = Math.max(6, text.split(/\s+/).length * 0.42);
     mode = null; audio = null;
     if (!muted()) {
-      const a = new Audio(); a.preload = "auto"; a.src = "audio/" + kode.toLowerCase() + "/" + kode.toLowerCase() + "-" + id + ".mp3";
+      const a = new Audio(); a.preload = "auto"; a.src = KONFIG.FOLDER_AUDIO + "/" + kode.toLowerCase() + "/" + kode.toLowerCase() + "-" + id + ".mp3";
       a.addEventListener("loadedmetadata", () => { if (slideId === id && mode !== "tts" && mode !== "timer") { mode = "audio"; audio = a; a.playbackRate = speed(); } });
       a.addEventListener("error", () => { if (slideId === id && !mode) mode = ttsOk && voice ? "tts" : "timer"; });
       a.addEventListener("ended", () => { if (slideId === id) { prog = 1; report(); } });
@@ -1085,12 +1097,13 @@ async function kirimUjian(cat) {
   store.del(U.key); U = null; gabungProgres(h.progres);
   const next = DAFTAR[DAFTAR.findIndex(d => d.kode === kode) + 1];
   $("#q-root").innerHTML = `<div class="res"><div class="small" style="opacity:.8">Ujian ${esc(kode)} terkirim${cat ? " · " + esc(cat) : ""}</div>${h.tampil ? `<div class="big mono">${Engine.fmt(h.skor, 1)}%</div><div>${Engine.fmt(h.benar, 1)} dari ${h.jumlah} benar</div>` : `<h2>Jawaban diterima ✓</h2><div>Nilai akan diumumkan oleh dosen.</div>`}</div>
-    <div class="bar-actions"><button class="btn copper" id="r-home">Ke beranda</button></div>${next ? `<p class="center muted">Materi berikutnya: ${esc(next.kode)} · ${esc(next.judul)}${next.file ? "" : " (segera tersedia)"}</p>` : ""}`;
+    <div class="bar-actions"><button class="btn copper" id="r-home">Ke beranda</button></div>${next ? `<p class="center muted">Materi berikutnya: ${esc(next.kode)} · ${esc(next.judul)}${adaMateri(next.kode) ? "" : " (segera tersedia)"}</p>` : ""}`;
   $("#r-home").onclick = home;
 }
 
 /* ============================ MULAI ============================ */
-(function start() {
+(async function start() {
+  if (DEMO) { window.MATERI = window.MATERI || {}; await Promise.all(DAFTAR.map(d => muatLokal(d.kode))); Local.setelan.materiAda = DAFTAR.map(d => d.kode).filter(k => window.MATERI[k]); }
   const s = store.get("ed_sesi", null);
   if (s && s.token && s.dosen) { S.dosen = s.dosen; S.token = s.token; S.setelan = s.setelan; homeDosen(); }
   else if (s && s.token) {
@@ -1099,7 +1112,7 @@ async function kirimUjian(cat) {
     home();
     // segarkan setelan & progres dari server
     api("progres", { progres: antre }, { tries: 2 }).then(r => { if (r.ok) { antre = {}; if (r.setelan) { S.setelan = r.setelan; store.set("ed_sesi", { profil: S.profil, token: S.token, setelan: S.setelan }); } gabungProgres(r.progres); if (!$("#v-home").hidden) home(); } }).catch(() => setSync("off"));
-    const m = location.hash.match(/^#(M\d\d)\/(\d+)$/); if (m && DAFTAR.some(d => d.kode === m[1] && d.file)) bukaMateri(m[1], +m[2] - 1);
+    const m = location.hash.match(/^#(M\d\d)\/(\d+)$/); if (m && adaMateri(m[1])) bukaMateri(m[1], +m[2] - 1);
   } else initLogin();
 })();
 </script>
