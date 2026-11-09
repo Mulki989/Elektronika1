@@ -7,6 +7,6 @@
  *                supaya tidak mudah ditebak. Isinya: <folder>/m01/m01-s01.mp3 dst.
  * ===================================================================== */
 window.KONFIG = {
-  API_URL: "",
+  API_URL: "https://script.google.com/macros/s/AKfycbyxGKevasT4wuT_2AFXARP7b0Asqx-xJTyhZyePZjEvqOcj4ikARPiIUll8a6AakT61nA/exec",
   FOLDER_AUDIO: "audio-ed7k2q"
 };
