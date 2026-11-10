@@ -1968,6 +1968,303 @@ var Visual = (function () {
     s += line(150, 120, 200, 120) + resH(200, 260, 120) + txt(230, 138, "R₁ " + fR(+p.R1 || 100000), { size: 9.5, b: 1 }) + line(260, 120, 280, 120) + line(280, 120, 280, y) + dot(280, y) + line(x + 60, y, 330, y) + txt(330, y - 6, "v_out", { size: 10, a: "end", b: 1, c: COP });
     return svg(340, 185, s);
   };
+  /* =================== ANIMASI MATERI 12: RANGKAIAN LOGIKA + PERMAINAN =================== */
+  var HI = "#16a34a", LO = "#9aa5a0";
+  function lg(t, a) {
+    var all = a.every(function (x) { return x; }), any = a.some(function (x) { return x; }), par = a.reduce(function (s, x) { return s ^ x; }, 0);
+    return { BUF: a[0], NOT: 1 - a[0], AND: all ? 1 : 0, OR: any ? 1 : 0, NAND: all ? 0 : 1, NOR: any ? 0 : 1, XOR: par, XNOR: 1 - par }[t];
+  }
+  var GNAMA = { BUF: "Buffer", NOT: "NOT", AND: "AND", OR: "OR", NAND: "NAND", NOR: "NOR", XOR: "X-OR", XNOR: "X-NOR" };
+  var GRUMUS = { BUF: "Y = A", NOT: "Y = A'", AND: "Y = A·B", OR: "Y = A + B", NAND: "Y = (A·B)'", NOR: "Y = (A + B)'", XOR: "Y = A ⊕ B", XNOR: "Y = (A ⊕ B)'" };
+  // simbol gerbang: tepi kiri x, tengah y, n masukan. Kembalikan {s, ins, out}
+  function gateSym(t, x, y, n, opt) {
+    opt = opt || {}; n = (t === "NOT" || t === "BUF") ? 1 : (n || 2);
+    var h = Math.max(36, n * 13 + 10), s = "", fill = opt.fill || "#fff", c = opt.c || INK, xr, ins = [];
+    if (t === "AND" || t === "NAND") { s += '<path d="M' + x + " " + (y - h / 2) + " L" + (x + 22) + " " + (y - h / 2) + " A" + h / 2 + " " + h / 2 + " 0 0 1 " + (x + 22) + " " + (y + h / 2) + " L" + x + " " + (y + h / 2) + ' Z" fill="' + fill + '" stroke="' + c + '" stroke-width="2.2"/>'; xr = x + 22 + h / 2; }
+    else if (t === "NOT" || t === "BUF") { s += '<polygon points="' + x + "," + (y - 16) + " " + x + "," + (y + 16) + " " + (x + 32) + "," + y + '" fill="' + fill + '" stroke="' + c + '" stroke-width="2.2"/>'; xr = x + 32; }
+    else { s += '<path d="M' + x + " " + (y - h / 2) + " Q" + (x + h * 0.32) + " " + y + " " + x + " " + (y + h / 2) + " Q" + (x + 30) + " " + (y + h / 2) + " " + (x + 50) + " " + y + " Q" + (x + 30) + " " + (y - h / 2) + " " + x + " " + (y - h / 2) + ' Z" fill="' + fill + '" stroke="' + c + '" stroke-width="2.2"/>'; xr = x + 50; if (t === "XOR" || t === "XNOR") s += '<path d="M' + (x - 7) + " " + (y - h / 2) + " Q" + (x - 7 + h * 0.32) + " " + y + " " + (x - 7) + " " + (y + h / 2) + '" fill="none" stroke="' + c + '" stroke-width="2.2"/>'; }
+    var bub = t === "NOT" || t === "NAND" || t === "NOR" || t === "XNOR";
+    if (bub) s += '<circle cx="' + (xr + 4.5) + '" cy="' + y + '" r="4.5" fill="#fff" stroke="' + c + '" stroke-width="2"/>';
+    for (var i = 0; i < n; i++) ins.push([x, n === 1 ? y : y + (i - (n - 1) / 2) * ((h - 14) / (n - 1))]);
+    if (opt.lab !== false) s += txt(x + (t === "NOT" || t === "BUF" ? 11 : 20), y + 3.5, opt.lab || (t === "BUF" || t === "NOT" ? "" : t), { size: 8, c: MUT, b: 1 });
+    return { s: s, ins: ins, out: [xr + (bub ? 9 : 0), y] };
+  }
+  function kawat(x1, y1, x2, y2, v, mx) { var c = v == null ? INK : v ? HI : LO; mx = mx == null ? (x1 + x2) / 2 : mx; return '<polyline points="' + x1 + "," + y1 + " " + mx + "," + y1 + " " + mx + "," + y2 + " " + x2 + "," + y2 + '" fill="none" stroke="' + c + '" stroke-width="' + (v ? 2.8 : 2.2) + '" stroke-linejoin="round"/>'; }
+  function lampu(x, y, v, lab) { return (v ? '<circle cx="' + x + '" cy="' + y + '" r="20" fill="#fde047" opacity=".35"/>' : "") + '<circle cx="' + x + '" cy="' + y + '" r="12" fill="' + (v ? "#fde047" : "#e5e7eb") + '" stroke="' + INK + '" stroke-width="1.8"/>' + line(x - 6, y - 6, x + 6, y + 6, INK, 1.2) + line(x + 6, y - 6, x - 6, y + 6, INK, 1.2) + (lab ? txt(x, y + 26, lab, { size: 9.5, b: 1 }) : "") + txt(x, y + (lab ? 38 : 26), String(v), { size: 10, b: 1, c: v ? HI : MUT }); }
+  function saklarBox(x, y, nm, v, key) { return '<g data-in="' + key + '" style="cursor:pointer"><rect x="' + (x - 24) + '" y="' + (y - 13) + '" width="38" height="26" rx="7" fill="' + (v ? "#dcfce7" : "#f3f4f6") + '" stroke="' + (v ? HI : "#9aa5a0") + '" stroke-width="2"/>' + txt(x - 5, y + 4.5, nm + "=" + v, { size: 10.5, b: 1, c: v ? HI : INK }) + "</g>"; }
+  // rangkaian umum: def = {ins:[{n,y}], g:[{id,t,in:[...],x,y,slot?}], outs:[{src,lab,x,y}]}, vals = {A:0,...}
+  function evalCkt(def, vals, types) {
+    var v = {}; def.ins.forEach(function (i) { v[i.n] = vals[i.n] ? 1 : 0; });
+    def.g.forEach(function (g) { var t = (types && types[g.id]) || g.t; v[g.id] = t ? lg(t, g.in.map(function (k) { return v[k]; })) : 0; });
+    return v;
+  }
+  function drawCkt(def, vals, opt) {
+    opt = opt || {}; var v = evalCkt(def, vals, opt.types), pos = {}, s = "", gs = "", X0 = def.x0 || 54;
+    def.ins.forEach(function (i) { pos[i.n] = [X0, i.y]; });
+    def.g.forEach(function (g) { var t = (opt.types && opt.types[g.id]) || g.t || "AND", sy = gateSym(t, g.x, g.y, g.in.length, { lab: g.slot ? (opt.types && opt.types[g.id] ? t : "?") : undefined, fill: g.slot ? "#fff7ed" : "#fff", c: g.slot ? COP : INK }); if (g.slot && !(opt.types && opt.types[g.id])) sy.s = '<rect x="' + (g.x - 4) + '" y="' + (g.y - 22) + '" width="58" height="44" rx="8" fill="#fff7ed" stroke="' + COP + '" stroke-width="2.2" stroke-dasharray="5 3"/>' + txt(g.x + 25, g.y + 6, "?", { size: 18, b: 1, c: COP }); g._p = sy; pos[g.id] = sy.out; if (g.slot) gs += '<rect data-slot="' + g.id + '" x="' + (g.x - 6) + '" y="' + (g.y - 26) + '" width="64" height="52" fill="transparent" style="cursor:pointer"/>'; });
+    def.g.forEach(function (g) { g.in.forEach(function (k, j) { var a = pos[k], b = g._p.ins[j]; s += kawat(a[0], a[1], b[0] + (/OR/.test((opt.types && opt.types[g.id]) || g.t || "") ? 5 : 0), b[1], v[k], b[0] - 12 - j * 5); }); });
+    def.g.forEach(function (g) { s += g._p.s; });
+    def.outs.forEach(function (o) { var a = pos[o.src]; s += kawat(a[0], a[1], o.x - 12, o.y, v[o.src], (a[0] + o.x) / 2) + (o.dev ? o.dev(v[o.src]) : lampu(o.x, o.y, v[o.src], o.lab)); });
+    def.ins.forEach(function (i) { s += saklarBox(30, i.y, i.n, v[i.n], i.n); });
+    return { s: s + gs, v: v };
+  }
+  function tabelKebenaran(names, fnOut, cur, outName, extra) {
+    var n = names.length, h = "<tr>" + names.map(function (x) { return "<th>" + x + "</th>"; }).join("") + (extra ? extra.map(function (e) { return "<th>" + e[0] + "</th>"; }).join("") : "") + "<th>" + (outName || "Y") + "</th></tr>";
+    for (var r = 0; r < (1 << n); r++) { var b = names.map(function (x, i) { return (r >> (n - 1 - i)) & 1; }), y = fnOut(b), on = cur === r; h += '<tr style="' + (on ? "background:#fef3c7;font-weight:700" : "") + '">' + b.map(function (x) { return "<td>" + x + "</td>"; }).join("") + (extra ? extra.map(function (e) { return "<td>" + e[1](b) + "</td>"; }).join("") : "") + '<td style="color:' + (y ? HI : "#6b7a72") + ';font-weight:700">' + y + "</td></tr>"; }
+    return '<table class="tabel small tk" style="margin:4px auto;width:auto">' + h + "</table>";
+  }
+  // A.gerbang: penjelajah gerbang
+  A.gerbang = function (el) {
+    var t = el.dataset.mode || "AND", n = 2, val = [0, 0, 0, 0], list = (el.dataset.list || "BUF,NOT,AND,OR,NAND,NOR,XOR,XNOR").split(",");
+    el.innerHTML = '<div class="ctrl">' + list.map(function (g) { return '<button class="btn sm ghost" data-g="' + g + '">' + GNAMA[g] + "</button>"; }).join("") + '</div><svg class="diag" viewBox="0 0 340 170"><g class="c"></g></svg><div class="ctrl"><button class="btn sm ghost" data-n="2">2 masukan</button><button class="btn sm ghost" data-n="3">3 masukan</button><button class="btn sm ghost" data-n="4">4 masukan</button></div><div class="tb"></div><div class="readout gr"></div>';
+    function draw() {
+      var nn = (t === "NOT" || t === "BUF") ? 1 : n, names = ["A", "B", "C", "D"].slice(0, nn), a = val.slice(0, nn), y = lg(t, a), cy = 80, s = "";
+      var gs = gateSym(t, 150, cy, nn, { lab: false });
+      names.forEach(function (nm, i) { var p = gs.ins[i], yy = nn === 1 ? cy : 30 + i * (100 / Math.max(1, nn - 1)); if (nn === 1) yy = cy; s += kawat(64, yy, p[0] + (/OR/.test(t) ? 5 : 0), p[1], a[i], 120 - i * 6) + saklarBox(42, yy, nm, a[i], i); });
+      s += gs.s + kawat(gs.out[0], cy, 258, cy, y, 230) + lampu(272, cy, y, "Y") + txt(170, 160, GRUMUS[t].replace("A·B", names.join("·")).replace("A + B", names.join(" + ")).replace("A ⊕ B", names.join(" ⊕ ")), { size: 12, b: 1, c: COP });
+      if ((t === "AND" || t === "OR") && nn === 2) { var ser = t === "AND"; s += txt(300, 14, ser ? "analogi: saklar seri" : "analogi: saklar paralel", { size: 8.5, a: "end", c: MUT }); }
+      el.querySelector(".c").innerHTML = s;
+      var r = 0; a.forEach(function (x) { r = r * 2 + x; });
+      el.querySelector(".tb").innerHTML = tabelKebenaran(names, function (b) { return lg(t, b); }, r);
+      el.querySelector(".gr").innerHTML = "<b>" + GNAMA[t] + "</b>: " + ({ BUF: "keluaran = masukan (penyangga)", NOT: "keluaran = kebalikan masukan", AND: "1 hanya bila SEMUA masukan 1", OR: "1 bila SALAH SATU masukan 1", NAND: "kebalikan AND: 0 hanya bila semua masukan 1", NOR: "kebalikan OR: 1 hanya bila semua masukan 0", XOR: "1 bila jumlah masukan bernilai 1 GANJIL (2 masukan: berbeda)", XNOR: "kebalikan X-OR: 1 bila masukan sama" })[t] + " · " + nn + " masukan → 2^" + nn + " = <b>" + (1 << nn) + "</b> baris tabel kebenaran";
+      $$(el, "[data-g]").forEach(function (b) { b.classList.toggle("on", b.dataset.g === t); });
+      $$(el, "[data-n]").forEach(function (b) { b.classList.toggle("on", +b.dataset.n === n); b.style.display = (t === "NOT" || t === "BUF") ? "none" : ""; });
+    }
+    el.addEventListener("click", function (e) { var k = e.target.closest("[data-in]"); if (k) { val[+k.dataset.in] ^= 1; draw(); } });
+    $$(el, "[data-g]").forEach(function (b) { b.onclick = function () { t = b.dataset.g; draw(); }; });
+    $$(el, "[data-n]").forEach(function (b) { b.onclick = function () { n = +b.dataset.n; draw(); }; });
+    draw();
+  };
+  // A.timing: diagram waktu
+  A.timing = function (el) {
+    var t = "AND", ph = 0, play = true;
+    el.innerHTML = '<div class="ctrl">' + ["AND", "OR", "NAND", "NOR", "XOR", "XNOR"].map(function (g) { return '<button class="btn sm ghost" data-g="' + g + '">' + GNAMA[g] + "</button>"; }).join("") + '<button class="btn sm ghost" data-a="p">❚❚</button></div><svg class="diag" viewBox="0 0 340 170"><g class="w"></g></svg><div class="readout tr"></div>';
+    function sig(fn, y0, c, lab) { var p = []; for (var k = 0; k <= 16; k++) { var v = fn(k); p.push((40 + k * 18) + "," + (y0 - v * 26)); if (k < 16) p.push((40 + (k + 1) * 18) + "," + (y0 - v * 26)); } return txt(30, y0 - 8, lab, { size: 11, a: "end", b: 1, c: c }) + poly(p.join(" "), c, 2.4); }
+    function draw() {
+      var A0 = function (k) { return (k >> 1) & 1; }, B0 = function (k) { return (k >> 2) & 1; }, Y = function (k) { return lg(t, [A0(k), B0(k)]); };
+      var s = sig(A0, 40, BLU, "A") + sig(B0, 85, BLU, "B") + sig(Y, 140, HI, "Y");
+      for (var k = 0; k <= 16; k += 2) s += line(40 + k * 18, 8, 40 + k * 18, 150, "#e5e7eb", 1);
+      var xc = 40 + ph * 288, kk = Math.min(15, Math.floor(ph * 16)); s += line(xc, 6, xc, 152, COP, 1.4) + txt(xc + 3, 160, "A=" + A0(kk) + " B=" + B0(kk) + " → Y=" + Y(kk), { size: 9, a: xc > 240 ? "end" : "start", c: COP, b: 1 });
+      el.querySelector(".w").innerHTML = s;
+      el.querySelector(".tr").innerHTML = "Diagram waktu gerbang <b>" + GNAMA[t] + "</b>: baca kolom demi kolom seperti tabel kebenaran yang berjalan terhadap waktu. Teknik ini dipakai saat membaca osiloskop/logic analyzer.";
+      $$(el, "[data-g]").forEach(function (b) { b.classList.toggle("on", b.dataset.g === t); });
+    }
+    $$(el, "[data-g]").forEach(function (b) { b.onclick = function () { t = b.dataset.g; draw(); }; });
+    el.querySelector("[data-a=p]").onclick = function () { play = !play; this.textContent = play ? "❚❚" : "▶"; };
+    draw(); loop(el, function (dt) { if (play) { ph = (ph + dt * 0.08) % 1; draw(); } });
+  };
+  // A.demorgan
+  A.demorgan = function (el) {
+    var mode = "nor", v = { A: 0, B: 0 };
+    el.innerHTML = '<div class="ctrl"><button class="btn sm ghost" data-m="nor">(A + B)\' = A\'·B\'</button><button class="btn sm ghost" data-m="nand">(A·B)\' = A\' + B\'</button></div><svg class="diag" viewBox="0 0 340 230"><g class="c"></g></svg><div class="tb"></div><div class="readout dr"></div>';
+    var D = {
+      nor: [{ ins: [{ n: "A", y: 30 }, { n: "B", y: 70 }], g: [{ id: "g", t: "NOR", in: ["A", "B"], x: 150, y: 50 }], outs: [{ src: "g", x: 290, y: 50, lab: "kiri" }] }, { ins: [{ n: "A", y: 140 }, { n: "B", y: 190 }], g: [{ id: "na", t: "NOT", in: ["A"], x: 90, y: 140 }, { id: "nb", t: "NOT", in: ["B"], x: 90, y: 190 }, { id: "g", t: "AND", in: ["na", "nb"], x: 180, y: 165 }], outs: [{ src: "g", x: 290, y: 165, lab: "kanan" }] }],
+      nand: [{ ins: [{ n: "A", y: 30 }, { n: "B", y: 70 }], g: [{ id: "g", t: "NAND", in: ["A", "B"], x: 150, y: 50 }], outs: [{ src: "g", x: 290, y: 50, lab: "kiri" }] }, { ins: [{ n: "A", y: 140 }, { n: "B", y: 190 }], g: [{ id: "na", t: "NOT", in: ["A"], x: 90, y: 140 }, { id: "nb", t: "NOT", in: ["B"], x: 90, y: 190 }, { id: "g", t: "OR", in: ["na", "nb"], x: 180, y: 165 }], outs: [{ src: "g", x: 290, y: 165, lab: "kanan" }] }]
+    };
+    function draw() {
+      var d = D[mode], r1 = drawCkt(d[0], v), r2 = drawCkt(d[1], v), same = r1.v.g === r2.v.g;
+      el.querySelector(".c").innerHTML = r1.s + line(10, 104, 330, 104, "#e5e7eb", 1) + r2.s;
+      var nor = mode === "nor";
+      el.querySelector(".tb").innerHTML = tabelKebenaran(["A", "B"], function (b) { return nor ? lg("NOR", b) : lg("NAND", b); }, v.A * 2 + v.B, nor ? "(A+B)'" : "(A·B)'", [["A'", function (b) { return 1 - b[0]; }], ["B'", function (b) { return 1 - b[1]; }], [nor ? "A'·B'" : "A' + B'", function (b) { return nor ? (1 - b[0]) * (1 - b[1]) : Math.max(1 - b[0], 1 - b[1]); }]]);
+      el.querySelector(".dr").innerHTML = (same ? '<span class="tag ok">kiri = kanan</span>' : '<span class="tag no">berbeda</span>') + " · Klik saklar A/B: kedua rangkaian selalu sama untuk keempat kombinasi → De Morgan terbukti. " + (nor ? "NOR = AND dengan masukan terbalik." : "NAND = OR dengan masukan terbalik.");
+      $$(el, "[data-m]").forEach(function (b) { b.classList.toggle("on", b.dataset.m === mode); });
+    }
+    el.addEventListener("click", function (e) { var k = e.target.closest("[data-in]"); if (k) { v[k.dataset.in] ^= 1; draw(); } });
+    $$(el, "[data-m]").forEach(function (b) { b.onclick = function () { mode = b.dataset.m; draw(); }; });
+    draw();
+  };
+  // A.boole: F = A'BC' + (A+B)C (tabel materi)
+  var DEF_BOOLE = { ins: [{ n: "A", y: 30 }, { n: "B", y: 80 }, { n: "C", y: 150 }], g: [{ id: "nA", t: "NOT", in: ["A"], x: 84, y: 30 }, { id: "nC", t: "NOT", in: ["C"], x: 84, y: 150 }, { id: "g1", t: "AND", in: ["nA", "B", "nC"], x: 175, y: 50 }, { id: "g2", t: "OR", in: ["A", "B"], x: 125, y: 112 }, { id: "g3", t: "AND", in: ["g2", "C"], x: 205, y: 135 }, { id: "F", t: "OR", in: ["g1", "g3"], x: 275, y: 92 }], outs: [{ src: "F", x: 348, y: 92, lab: "F" }] };
+  A.boole = function (el) {
+    var v = { A: 0, B: 1, C: 0 };
+    el.innerHTML = '<svg class="diag" viewBox="0 0 370 190"><g class="c"></g></svg><div class="tb"></div><div class="readout br"></div>';
+    function draw() {
+      var r = drawCkt(DEF_BOOLE, v); el.querySelector(".c").innerHTML = r.s;
+      el.querySelector(".tb").innerHTML = tabelKebenaran(["A", "B", "C"], function (b) { return ((1 - b[0]) & b[1] & (1 - b[2])) | ((b[0] | b[1]) & b[2]); }, v.A * 4 + v.B * 2 + v.C, "F", [["A'B", function (b) { return (1 - b[0]) & b[1]; }], ["A'BC'", function (b) { return (1 - b[0]) & b[1] & (1 - b[2]); }], ["A+B", function (b) { return b[0] | b[1]; }], ["(A+B)C", function (b) { return (b[0] | b[1]) & b[2]; }]]);
+      el.querySelector(".br").innerHTML = "F = A'·B·C' + (A + B)·C · sekarang A=" + v.A + ", B=" + v.B + ", C=" + v.C + " → A'BC' = " + r.v.g1 + ", (A+B)C = " + r.v.g3 + " → <b>F = " + r.v.F + "</b>";
+    }
+    el.addEventListener("click", function (e) { var k = e.target.closest("[data-in]"); if (k) { v[k.dataset.in] ^= 1; draw(); } });
+    draw();
+  };
+  // A.ic74: simulator IC TTL 74xx
+  var IC74 = {
+    "7400": { t: "NAND", g: [[1, 2, 3], [4, 5, 6], [9, 10, 8], [12, 13, 11]] }, "7402": { t: "NOR", g: [[2, 3, 1], [5, 6, 4], [8, 9, 10], [11, 12, 13]] },
+    "7404": { t: "NOT", g: [[1, 2], [3, 4], [5, 6], [9, 8], [11, 10], [13, 12]] }, "7408": { t: "AND", g: [[1, 2, 3], [4, 5, 6], [9, 10, 8], [12, 13, 11]] },
+    "7432": { t: "OR", g: [[1, 2, 3], [4, 5, 6], [9, 10, 8], [12, 13, 11]] }, "7486": { t: "XOR", g: [[1, 2, 3], [4, 5, 6], [9, 10, 8], [12, 13, 11]] }
+  };
+  A.ic74 = function (el) {
+    var ic = "7408", pin = {}, vcc = true;
+    el.innerHTML = '<div class="ctrl">' + Object.keys(IC74).map(function (k) { return '<button class="btn sm ghost" data-ic="' + k + '">' + k + " " + IC74[k].t + "</button>"; }).join("") + '</div><svg class="diag" viewBox="0 0 340 210"><g class="c"></g></svg><div class="ctrl"><button class="btn sm ghost" data-v="1">Catu 5 V terpasang</button></div><div class="readout ir"></div>';
+    function px(p) { return p <= 7 ? 50 + (p - 1) * 40 : 50 + (14 - p) * 40; }
+    function py(p) { return p <= 7 ? 160 : 50; }
+    function draw() {
+      var d = IC74[ic], isIn = {}, out = {}; d.g.forEach(function (g) { for (var i = 0; i < g.length - 1; i++) isIn[g[i]] = 1; var a = g.slice(0, -1).map(function (p) { return pin[p] ? 1 : 0; }); out[g[g.length - 1]] = vcc ? lg(d.t, a) : 0; });
+      var s = '<rect x="30" y="68" width="280" height="74" rx="6" fill="#2b2b2b"/><path d="M30 95 a10 10 0 0 1 0 20" fill="#fff"/>' + txt(170, 102, "SN" + ic + "  (" + IC74[ic].t + ")", { size: 13, b: 1, c: "#eee" }) + txt(170, 122, d.t === "NOT" ? "6 gerbang" : "4 gerbang × 2 masukan", { size: 9, c: "#bbb" });
+      for (var p = 1; p <= 14; p++) {
+        var x = px(p), y = py(p), top = p > 7, lab = p === 7 ? "GND" : p === 14 ? "VCC" : isIn[p] ? "in" : out[p] != null ? "out" : "", v = isIn[p] ? (pin[p] ? 1 : 0) : out[p];
+        s += '<rect x="' + (x - 7) + '" y="' + (top ? 52 : 142) + '" width="14" height="16" fill="#c0c0c0"/>' + txt(x, top ? 64 : 154, String(p), { size: 8.5, b: 1 });
+        if (isIn[p]) s += '<g data-pin="' + p + '" style="cursor:pointer"><rect x="' + (x - 15) + '" y="' + (top ? 18 : 172) + '" width="30" height="22" rx="6" fill="' + (v ? "#dcfce7" : "#f3f4f6") + '" stroke="' + (v ? HI : "#9aa5a0") + '" stroke-width="2"/>' + txt(x, top ? 33 : 187, String(v), { size: 11, b: 1, c: v ? HI : INK }) + "</g>" + line(x, top ? 40 : 160, x, top ? 52 : 172, v ? HI : LO, 2);
+        else if (out[p] != null) s += line(x, top ? 36 : 158, x, top ? 52 : 174, v ? HI : LO, 2) + '<circle cx="' + x + '" cy="' + (top ? 28 : 182) + '" r="9" fill="' + (v ? "#ef4444" : "#e5e7eb") + '" stroke="' + INK + '" stroke-width="1.4"/>' + (v ? '<circle cx="' + x + '" cy="' + (top ? 28 : 182) + '" r="14" fill="#ef4444" opacity=".25"/>' : "");
+        else s += txt(x, top ? 36 : 186, lab, { size: 8.5, b: 1, c: p === 14 ? (vcc ? RED : MUT) : INK });
+        s += txt(x, top ? 12 : 206, isIn[p] ? "in" : out[p] != null ? "LED" : "", { size: 7.5, c: MUT });
+      }
+      el.querySelector(".c").innerHTML = s;
+      var g0 = d.g[0], a0 = g0.slice(0, -1).map(function (p) { return pin[p] ? 1 : 0; });
+      el.querySelector(".ir").innerHTML = "Klik kotak masukan (pin in). Gerbang 1: pin " + g0.slice(0, -1).join(", ") + " = " + a0.join(", ") + " → pin " + g0[g0.length - 1] + " = <b>" + (vcc ? lg(d.t, a0) : 0) + "</b>" + (vcc ? "" : ' <span class="tag no">tanpa VCC (pin 14) dan GND (pin 7) IC tidak bekerja!</span>') + (ic === "7402" ? ' · <span class="tag mid">awas: pin keluaran 7402 berbeda (1, 4, 10, 13)</span>' : "");
+      $$(el, "[data-ic]").forEach(function (b) { b.classList.toggle("on", b.dataset.ic === ic); });
+      var bv = el.querySelector("[data-v]"); bv.classList.toggle("on", vcc); bv.textContent = vcc ? "Catu 5 V terpasang" : "Catu dilepas";
+    }
+    el.addEventListener("click", function (e) { var k = e.target.closest("[data-pin]"); if (k) { pin[+k.dataset.pin] ^= 1; draw(); } });
+    $$(el, "[data-ic]").forEach(function (b) { b.onclick = function () { ic = b.dataset.ic; pin = {}; draw(); }; });
+    el.querySelector("[data-v]").onclick = function () { vcc = !vcc; draw(); };
+    draw();
+  };
+  // A.aplikasi: lampu tangga, alarm mobil, voting, half adder
+  function buzzer(v, x, y, lab) { return '<rect x="' + (x - 14) + '" y="' + (y - 14) + '" width="28" height="28" rx="14" fill="' + (v ? "#ef4444" : "#e5e7eb") + '" stroke="' + INK + '" stroke-width="1.6"/>' + txt(x, y + 4, v ? "🔊" : "🔈", { size: 12 }) + txt(x, y + 30, lab, { size: 9.5, b: 1 }) + txt(x, y + 42, String(v), { size: 10, b: 1, c: v ? HI : MUT }); }
+  var APL = {
+    tangga: { nama: "Lampu tangga 2 saklar", def: { ins: [{ n: "S1", y: 50 }, { n: "S2", y: 110 }], g: [{ id: "Y", t: "XOR", in: ["S1", "S2"], x: 160, y: 80 }], outs: [{ src: "Y", x: 290, y: 80, lab: "lampu" }] }, ket: "S1 di bawah tangga, S2 di atas. Mengubah SALAH SATU saklar selalu membalik keadaan lampu → X-OR: Y = S1 ⊕ S2." },
+    alarm: { nama: "Alarm mobil", def: { ins: [{ n: "K", y: 30 }, { n: "P", y: 80 }, { n: "G", y: 130 }], g: [{ id: "o", t: "OR", in: ["P", "G"], x: 120, y: 105 }, { id: "Y", t: "AND", in: ["K", "o"], x: 210, y: 70 }], outs: [{ src: "Y", x: 300, y: 70, dev: function (v) { return buzzer(v, 300, 70, "sirine"); } }] }, ket: "K = alarm aktif (kunci remote), P = pintu terbuka, G = sensor goncangan. Sirine = K·(P + G): berbunyi hanya bila alarm aktif DAN ada pintu terbuka ATAU goncangan." },
+    voting: { nama: "Voting 3 juri (mayoritas)", def: { ins: [{ n: "J1", y: 30 }, { n: "J2", y: 90 }, { n: "J3", y: 150 }], g: [{ id: "a", t: "AND", in: ["J1", "J2"], x: 120, y: 40 }, { id: "b", t: "AND", in: ["J2", "J3"], x: 120, y: 95 }, { id: "c", t: "AND", in: ["J1", "J3"], x: 120, y: 150 }, { id: "Y", t: "OR", in: ["a", "b", "c"], x: 210, y: 95 }], outs: [{ src: "Y", x: 300, y: 95, lab: "LOLOS" }] }, ket: "Peserta lolos bila minimal 2 dari 3 juri setuju: Y = J1·J2 + J2·J3 + J1·J3 (fungsi mayoritas)." },
+    adder: { nama: "Half adder (penjumlah 1-bit)", def: { ins: [{ n: "A", y: 50 }, { n: "B", y: 120 }], g: [{ id: "S", t: "XOR", in: ["A", "B"], x: 160, y: 50 }, { id: "C", t: "AND", in: ["A", "B"], x: 160, y: 130 }], outs: [{ src: "S", x: 290, y: 50, lab: "S (sum)" }, { src: "C", x: 290, y: 130, lab: "C (carry)" }] }, ket: "Menjumlahkan dua bit: 1 + 1 = 10₂ → S = A ⊕ B, C = A·B. Dasar penjumlah di dalam mikroprosesor (Materi 13–14)." }
+  };
+  A.aplikasi = function (el) {
+    var mode = el.dataset.mode || "tangga", v = {};
+    el.innerHTML = '<div class="ctrl">' + Object.keys(APL).map(function (k) { return '<button class="btn sm ghost" data-m="' + k + '">' + APL[k].nama + "</button>"; }).join("") + '</div><svg class="diag" viewBox="0 0 340 200"><g class="c"></g></svg><div class="readout ar"></div>';
+    function draw() {
+      var a = APL[mode], r = drawCkt(a.def, v); el.querySelector(".c").innerHTML = r.s;
+      el.querySelector(".ar").innerHTML = "<b>" + a.nama + "</b>: " + a.ket + (mode === "adder" ? " · sekarang " + (v.A ? 1 : 0) + " + " + (v.B ? 1 : 0) + " = <b>" + r.v.C + r.v.S + "₂</b> (= " + (r.v.C * 2 + r.v.S) + ")" : "");
+      $$(el, "[data-m]").forEach(function (b) { b.classList.toggle("on", b.dataset.m === mode); });
+    }
+    el.addEventListener("click", function (e) { var k = e.target.closest("[data-in]"); if (k) { v[k.dataset.in] = v[k.dataset.in] ? 0 : 1; draw(); } });
+    $$(el, "[data-m]").forEach(function (b) { b.onclick = function () { mode = b.dataset.m; v = {}; draw(); }; });
+    draw();
+  };
+  // gambar statis untuk soal
+  G.gerbang = function (p) { var t = p.t || "AND", n = +p.n || 2, gs = gateSym(t, 120, 60, n, { lab: false }), s = ""; ["A", "B", "C", "D"].slice(0, t === "NOT" || t === "BUF" ? 1 : n).forEach(function (nm, i) { var q = gs.ins[i]; s += line(50, q[1], q[0] + (/OR/.test(t) ? 5 : 0), q[1]) + txt(40, q[1] + 4, nm, { size: 11, b: 1, a: "end" }); }); return svg(260, 120, s + gs.s + line(gs.out[0], 60, 220, 60) + txt(226, 64, "Y", { size: 11, b: 1, a: "start" })); };
+  G.boole = function () { var r = drawCkt(DEF_BOOLE, { A: 0, B: 0, C: 0 }); return svg(370, 190, r.s.replace(/#16a34a|#9aa5a0/g, INK)); };
+  G.notbjt = function (p) {
+    var s = line(40, 20, 240, 20) + txt(40, 14, "+V_CC 5 V", { size: 9.5, a: "start", b: 1 }) + resV(200, 20, 70) + txt(212, 48, "R_C " + fR(+p.RC || 1000), { size: 9.5, a: "start", b: 1 }) + line(200, 70, 200, 86) + dot(200, 80) + line(200, 80, 270, 80) + txt(274, 84, "Y = A'", { size: 10.5, a: "start", b: 1, c: COP });
+    s += bjtSym(178, 126, false, INK, false) + line(200, 166, 200, 180) + gnd(200, 180) + txt(14, 130, "A", { size: 11, b: 1, a: "start", c: BLU }) + line(26, 126, 60, 126) + resH(60, 120, 126) + txt(90, 114, "R_B " + fR(+p.RB || 10000), { size: 9.5, b: 1 }) + line(120, 126, 154, 126);
+    return svg(330, 195, s);
+  };
+
+  /* ---------------- PERMAINAN (JEDA MAIN) ---------------- */
+  function gameHead(judul, sub) { return '<div class="gm-head"><span class="gm-badge">🎮 JEDA MAIN</span><b>' + judul + '</b><span class="gm-sub">' + sub + "</span></div>"; }
+  // Game 1: Gerbang Misterius
+  A.game_tebak = function (el) {
+    var pool = ["AND", "OR", "NAND", "NOR", "XOR", "XNOR"], R = 8, ronde = 0, skor = 0, streak = 0, t, v, uji, done, msg = "";
+    function baru() { t = pool[Math.floor(Math.random() * pool.length)]; v = [0, 0]; uji = {}; uji["00"] = 1; done = false; msg = "Klik saklar A dan B untuk menguji kotak misterius, lalu tebak gerbangnya."; }
+    el.innerHTML = gameHead("Gerbang Misterius", "uji kotak tersembunyi, lalu tebak gerbangnya") + '<svg class="diag" viewBox="0 0 340 150"><g class="c"></g></svg><div class="ctrl gm-pilih">' + pool.map(function (g) { return '<button class="btn sm" data-t="' + g + '">' + GNAMA[g] + "</button>"; }).join("") + '</div><div class="readout gm-msg"></div><div class="ctrl"><button class="btn sm ghost" data-a="lanjut">Ronde berikut ▶</button><button class="btn sm ghost" data-a="ulang">Main lagi ↺</button></div>';
+    function draw() {
+      var y = lg(t, v), s = "";
+      s += kawat(64, 45, 140, 45, v[0], 100) + kawat(64, 105, 140, 105, v[1], 100) + saklarBox(42, 45, "A", v[0], 0) + saklarBox(42, 105, "B", v[1], 1);
+      if (done) { var gs = gateSym(t, 150, 75, 2, { lab: false }); s += kawat(140, 45, 150 + (/OR/.test(t) ? 5 : 0), gs.ins[0][1], v[0], 145) + kawat(140, 105, 150 + (/OR/.test(t) ? 5 : 0), gs.ins[1][1], v[1], 145) + gs.s + kawat(gs.out[0], 75, 268, 75, y, 240) + txt(175, 132, GNAMA[t], { size: 12, b: 1, c: COP }); }
+      else s += '<rect x="140" y="25" width="100" height="100" rx="12" fill="#1f2a24"/>' + txt(190, 88, "?", { size: 46, b: 1, c: "#fde047" }) + kawat(240, 75, 268, 75, y, 254);
+      s += lampu(284, 75, y, "Y");
+      var tested = Object.keys(uji).length; s += txt(330, 145, "kombinasi diuji: " + tested + "/4", { size: 9, a: "end", c: MUT });
+      el.querySelector(".c").innerHTML = s;
+      el.querySelector(".gm-msg").innerHTML = (ronde >= R ? "🏁 <b>Selesai!</b> Skor akhir <b>" + skor + "</b> dari " + R * 10 + (skor >= R * 9 ? " · Luar biasa! 🏆" : skor >= R * 6 ? " · Bagus! ⭐" : " · Coba lagi untuk skor lebih tinggi.") : "Ronde <b>" + (ronde + 1) + "/" + R + "</b> · Skor <b>" + skor + "</b>" + (streak > 1 ? " · 🔥 beruntun " + streak : "") + "<br>" + msg);
+      $$(el, ".gm-pilih button").forEach(function (b) { b.disabled = done || ronde >= R; });
+    }
+    el.addEventListener("click", function (e) {
+      var k = e.target.closest("[data-in]"); if (k && !done && ronde < R) { v[+k.dataset.in] ^= 1; uji["" + v[0] + v[1]] = 1; draw(); return; }
+      var g = e.target.closest("[data-t]"); if (g && !done && ronde < R) {
+        var benar = g.dataset.t === t, tested = Object.keys(uji).length; done = true;
+        if (benar) { var p = tested <= 2 ? 10 : tested === 3 ? 8 : 6; skor += 10 === p ? 10 : p; streak++; msg = "✅ Benar, itu <b>" + GNAMA[t] + "</b>! +" + p + " poin" + (tested <= 2 ? " (hemat uji, hebat!)" : ""); }
+        else { streak = 0; msg = "❌ Belum tepat. Kotak itu <b>" + GNAMA[t] + "</b> (" + GRUMUS[t] + "). Tips: uji keempat kombinasi agar yakin."; }
+        draw(); return;
+      }
+      var a = e.target.closest("[data-a]"); if (a) { if (a.dataset.a === "ulang") { ronde = 0; skor = 0; streak = 0; baru(); } else if (done) { ronde++; if (ronde < R) baru(); } draw(); }
+    });
+    baru(); draw();
+  };
+  // Game 2: Nyalakan Lampu
+  var LV_LAMPU = [
+    { judul: "Pemanasan", start: {}, def: { ins: [{ n: "A", y: 50 }, { n: "B", y: 110 }], g: [{ id: "Y", t: "AND", in: ["A", "B"], x: 160, y: 80 }], outs: [{ src: "Y", x: 290, y: 80, lab: "Y" }] } },
+    { judul: "Kebalikan", start: { A: 1, B: 1 }, def: { ins: [{ n: "A", y: 50 }, { n: "B", y: 110 }], g: [{ id: "Y", t: "NOR", in: ["A", "B"], x: 160, y: 80 }], outs: [{ src: "Y", x: 290, y: 80, lab: "Y" }] } },
+    { judul: "Penjaga", start: { C: 1 }, def: { ins: [{ n: "A", y: 30 }, { n: "B", y: 80 }, { n: "C", y: 145 }], g: [{ id: "o", t: "OR", in: ["A", "B"], x: 110, y: 55 }, { id: "n", t: "NOT", in: ["C"], x: 110, y: 145 }, { id: "Y", t: "AND", in: ["o", "n"], x: 210, y: 100 }], outs: [{ src: "Y", x: 300, y: 100, lab: "Y" }] } },
+    { judul: "Beda itu indah", start: {}, def: { ins: [{ n: "A", y: 30 }, { n: "B", y: 80 }, { n: "C", y: 145 }], g: [{ id: "x", t: "XOR", in: ["A", "B"], x: 120, y: 55 }, { id: "Y", t: "AND", in: ["x", "C"], x: 210, y: 100 }], outs: [{ src: "Y", x: 300, y: 100, lab: "Y" }] } },
+    { judul: "Dua lampu", start: {}, def: { ins: [{ n: "A", y: 30 }, { n: "B", y: 90 }, { n: "C", y: 150 }], g: [{ id: "p", t: "NAND", in: ["A", "B"], x: 120, y: 50 }, { id: "q", t: "OR", in: ["B", "C"], x: 120, y: 130 }, { id: "Y", t: "AND", in: ["p", "q"], x: 210, y: 60 }, { id: "Z", t: "XNOR", in: ["q", "A"], x: 210, y: 140 }], outs: [{ src: "Y", x: 300, y: 60, lab: "Y" }, { src: "Z", x: 300, y: 140, lab: "Z" }] }, dua: true },
+    { judul: "Bos terakhir", start: { D: 1 }, def: { ins: [{ n: "A", y: 22 }, { n: "B", y: 66 }, { n: "C", y: 112 }, { n: "D", y: 158 }], g: [{ id: "p", t: "XOR", in: ["A", "B"], x: 105, y: 44 }, { id: "q", t: "NOR", in: ["C", "D"], x: 105, y: 135 }, { id: "r", t: "NAND", in: ["p", "q"], x: 190, y: 90 }, { id: "Y", t: "NOT", in: ["r"], x: 255, y: 90 }], outs: [{ src: "Y", x: 315, y: 90, lab: "Y" }] } }
+  ];
+  A.game_lampu = function (el) {
+    var lv = 0, v, klik, bintang = [], selesai;
+    function mulai() { v = {}; var st = LV_LAMPU[lv].start; Object.keys(st).forEach(function (k) { v[k] = st[k]; }); klik = 0; selesai = false; }
+    function minKlik(L) {
+      var names = L.def.ins.map(function (i) { return i.n; }), best = 99;
+      for (var m = 0; m < (1 << names.length); m++) { var vv = {}, d = 0; names.forEach(function (n, i) { vv[n] = (m >> i) & 1; if (vv[n] !== (L.start[n] || 0)) d++; }); if (ok(L, vv)) best = Math.min(best, d); }
+      return best;
+    }
+    function ok(L, vv) { var r = evalCkt(L.def, vv); return L.dua ? r.Y === 1 && r.Z === 1 : r.Y === 1; }
+    el.innerHTML = gameHead("Nyalakan Lampu!", "atur saklar sampai lampu menyala, dengan klik sesedikit mungkin") + '<div class="readout gm-lv"></div><svg class="diag" viewBox="0 0 340 185"><g class="c"></g></svg><div class="readout gm-msg"></div><div class="ctrl"><button class="btn sm ghost" data-a="ulang">Ulangi level ↺</button><button class="btn sm" data-a="lanjut">Level berikut ▶</button></div>';
+    function draw() {
+      var L = LV_LAMPU[lv], r = drawCkt(L.def, v), m = minKlik(L), sukses = ok(L, v);
+      if (sukses && !selesai) { selesai = true; bintang[lv] = klik <= m ? 3 : klik <= m + 2 ? 2 : 1; }
+      el.querySelector(".c").innerHTML = r.s;
+      el.querySelector(".gm-lv").innerHTML = LV_LAMPU.map(function (x, i) { return '<span class="tag ' + (i === lv ? "ok" : bintang[i] ? "mid" : "") + '">L' + (i + 1) + (bintang[i] ? " " + "★".repeat(bintang[i]) : "") + "</span>"; }).join(" ") + " · <b>Level " + (lv + 1) + ": " + L.judul + "</b>" + (L.dua ? " (nyalakan Y DAN Z)" : "");
+      el.querySelector(".gm-msg").innerHTML = selesai ? "🎉 <b>Lampu menyala!</b> Klik: " + klik + " (minimum " + m + ") → " + "★".repeat(bintang[lv]) + "☆".repeat(3 - bintang[lv]) + (lv === LV_LAMPU.length - 1 ? " · 🏆 Semua level selesai! Total bintang: " + bintang.reduce(function (a, b) { return a + (b || 0); }, 0) + "/18" : "") : "Klik kotak saklar di kiri. Kabel hijau = 1, abu-abu = 0. Klik: " + klik + " · Target bintang 3: " + m + " klik";
+      el.querySelector("[data-a=lanjut]").disabled = !selesai || lv === LV_LAMPU.length - 1;
+    }
+    el.addEventListener("click", function (e) {
+      var k = e.target.closest("[data-in]"); if (k && !selesai) { v[k.dataset.in] = v[k.dataset.in] ? 0 : 1; klik++; draw(); return; }
+      var a = e.target.closest("[data-a]"); if (a) { if (a.dataset.a === "lanjut" && lv < LV_LAMPU.length - 1) lv++; mulai(); draw(); }
+    });
+    mulai(); draw();
+  };
+  // Game 3: Pasang Gerbang
+  var LV_PASANG = [
+    { def: { ins: [{ n: "A", y: 50 }, { n: "B", y: 110 }], g: [{ id: "s1", slot: 1, in: ["A", "B"], x: 160, y: 80 }], outs: [{ src: "s1", x: 290, y: 80, lab: "Y" }] }, out: "s1", target: { s1: "XOR" } },
+    { def: { ins: [{ n: "A", y: 50 }, { n: "B", y: 110 }], g: [{ id: "s1", slot: 1, in: ["A", "B"], x: 160, y: 80 }], outs: [{ src: "s1", x: 290, y: 80, lab: "Y" }] }, out: "s1", target: { s1: "NOR" } },
+    { def: { ins: [{ n: "A", y: 30 }, { n: "B", y: 80 }, { n: "C", y: 145 }], g: [{ id: "s1", slot: 1, in: ["A", "B"], x: 110, y: 55 }, { id: "Y", t: "AND", in: ["s1", "C"], x: 210, y: 100 }], outs: [{ src: "Y", x: 300, y: 100, lab: "Y" }] }, out: "Y", target: { s1: "NAND" } },
+    { def: { ins: [{ n: "A", y: 30 }, { n: "B", y: 80 }, { n: "C", y: 145 }], g: [{ id: "s1", slot: 1, in: ["A", "B"], x: 110, y: 55 }, { id: "s2", slot: 1, in: ["s1", "C"], x: 210, y: 100 }], outs: [{ src: "s2", x: 300, y: 100, lab: "Y" }] }, out: "s2", target: { s1: "XOR", s2: "OR" } },
+    { def: { ins: [{ n: "A", y: 30 }, { n: "B", y: 90 }, { n: "C", y: 150 }], g: [{ id: "s1", slot: 1, in: ["A", "B"], x: 110, y: 50 }, { id: "s2", slot: 1, in: ["B", "C"], x: 110, y: 130 }, { id: "s3", slot: 1, in: ["s1", "s2"], x: 210, y: 90 }], outs: [{ src: "s3", x: 300, y: 90, lab: "Y" }] }, out: "s3", target: { s1: "AND", s2: "AND", s3: "OR" } }
+  ];
+  A.game_pasang = function (el) {
+    var lv = 0, types, urut = ["AND", "OR", "NAND", "NOR", "XOR", "XNOR"], skor = [], coba;
+    function mulai() { types = {}; coba = 0; }
+    function tabel(L, tp) { var names = L.def.ins.map(function (i) { return i.n; }), o = []; for (var m = 0; m < (1 << names.length); m++) { var vv = {}; names.forEach(function (n, i) { vv[n] = (m >> (names.length - 1 - i)) & 1; }); o.push(evalCkt(L.def, vv, tp)[L.out]); } return o; }
+    el.innerHTML = gameHead("Pasang Gerbang", "klik kotak ? untuk mengganti jenis gerbang sampai tabel cocok dengan target") + '<div class="readout gm-lv"></div><svg class="diag" viewBox="0 0 340 185"><g class="c"></g></svg><div class="tb"></div><div class="readout gm-msg"></div><div class="ctrl"><button class="btn sm ghost" data-a="ulang">Ulangi ↺</button><button class="btn sm" data-a="lanjut">Level berikut ▶</button></div>';
+    function draw() {
+      var L = LV_PASANG[lv], names = L.def.ins.map(function (i) { return i.n; }), slots = L.def.g.filter(function (g) { return g.slot; }), full = slots.every(function (g) { return types[g.id]; });
+      var tg = tabel(L, L.target), cur = full ? tabel(L, types) : null, cocok = full && tg.every(function (x, i) { return x === cur[i]; });
+      if (cocok && skor[lv] == null) skor[lv] = coba;
+      el.querySelector(".c").innerHTML = drawCkt(L.def, {}, { types: types }).s.replace(/data-in="[^"]*"/g, "");
+      var h = "<tr>" + names.map(function (n) { return "<th>" + n + "</th>"; }).join("") + "<th>target Y</th><th>rangkaianmu</th></tr>";
+      tg.forEach(function (y, m) { var c = cur ? cur[m] : "?", okr = cur && c === y; h += "<tr>" + names.map(function (n, i) { return "<td>" + ((m >> (names.length - 1 - i)) & 1) + "</td>"; }).join("") + '<td style="font-weight:700">' + y + '</td><td style="font-weight:700;background:' + (cur ? (okr ? "#dcfce7" : "#fee2e2") : "") + '">' + c + "</td></tr>"; });
+      el.querySelector(".tb").innerHTML = '<table class="tabel small" style="margin:4px auto;width:auto">' + h + "</table>";
+      el.querySelector(".gm-lv").innerHTML = LV_PASANG.map(function (x, i) { return '<span class="tag ' + (i === lv ? "ok" : skor[i] != null ? "mid" : "") + '">L' + (i + 1) + (skor[i] != null ? " ✓" : "") + "</span>"; }).join(" ") + " · <b>Level " + (lv + 1) + "</b> · " + slots.length + " kotak kosong";
+      el.querySelector(".gm-msg").innerHTML = cocok ? "🎉 <b>Cocok!</b> " + slots.map(function (g) { return GNAMA[types[g.id]]; }).join(" + ") + " · pergantian: " + coba + (lv === LV_PASANG.length - 1 ? " · 🏆 Semua level selesai!" : "") : full ? "Belum cocok: baris merah berbeda dari target. Klik kotak gerbang untuk mengganti." : "Klik kotak <b>?</b> (berulang) untuk memilih gerbang: AND → OR → NAND → NOR → X-OR → X-NOR.";
+      el.querySelector("[data-a=lanjut]").disabled = !cocok || lv === LV_PASANG.length - 1;
+    }
+    el.addEventListener("click", function (e) {
+      var k = e.target.closest("[data-slot]"); if (k) { var id = k.dataset.slot, i = urut.indexOf(types[id]); types[id] = urut[(i + 1) % urut.length]; coba++; draw(); return; }
+      var a = e.target.closest("[data-a]"); if (a) { if (a.dataset.a === "lanjut" && lv < LV_PASANG.length - 1) lv++; mulai(); draw(); }
+    });
+    mulai(); draw();
+  };
+  // Game 4: Kilat 30 detik
+  A.game_kilat = function (el) {
+    var pool = ["NOT", "AND", "OR", "NAND", "NOR", "XOR", "XNOR"], main = false, sisa = 30, skor = 0, salah = 0, soal, best = 0, umpan = "";
+    try { best = +(localStorage.getItem("ed_kilat_best") || 0); } catch (e) { }
+    function baru() { var t = pool[Math.floor(Math.random() * pool.length)], n = t === "NOT" ? 1 : Math.random() < 0.3 ? 3 : 2, a = []; for (var i = 0; i < n; i++) a.push(Math.random() < 0.5 ? 1 : 0); soal = { t: t, a: a, y: lg(t, a) }; }
+    el.innerHTML = gameHead("Kilat 30 Detik", "jawab keluaran gerbang secepat mungkin (tombol atau tekan 0/1)") + '<svg class="diag" viewBox="0 0 340 150"><g class="c"></g></svg><div class="ctrl"><button class="btn gm-big" data-j="0">0</button><button class="btn gm-big" data-j="1">1</button></div><div class="readout gm-msg"></div><div class="ctrl"><button class="btn sm" data-a="mulai">Mulai ▶</button></div>';
+    function draw() {
+      var s = "";
+      if (main && soal) { var gs = gateSym(soal.t, 150, 70, soal.a.length, { lab: false }); soal.a.forEach(function (x, i) { var q = gs.ins[i]; s += kawat(70, q[1], q[0] + (/OR/.test(soal.t) ? 5 : 0), q[1], x, 110) + txt(56, q[1] + 5, String(x), { size: 16, b: 1, c: x ? HI : MUT, a: "end" }); }); s += gs.s + line(gs.out[0], 70, 250, 70, INK, 2.2) + txt(270, 78, "?", { size: 26, b: 1, c: COP }) + txt(175, 130, GNAMA[soal.t], { size: 12, b: 1, c: COP }); }
+      else s += txt(170, 70, sisa <= 0 ? "Waktu habis!" : "Siap?", { size: 26, b: 1, c: COP }) + txt(170, 100, "Tekan Mulai", { size: 11, c: MUT });
+      s += '<rect x="10" y="140" width="320" height="6" rx="3" fill="#e5e7eb"/><rect x="10" y="140" width="' + (320 * Math.max(0, sisa) / 30) + '" height="6" rx="3" fill="' + (sisa > 10 ? HI : RED) + '"/>';
+      el.querySelector(".c").innerHTML = s;
+      el.querySelector(".gm-msg").innerHTML = "⏱ " + Math.max(0, Math.ceil(sisa)) + " s · Skor <b>" + skor + "</b> · salah " + salah + " · rekor <b>" + best + "</b>" + (umpan ? "<br>" + umpan : "");
+      el.querySelector("[data-a=mulai]").textContent = main ? "Sedang main…" : "Mulai ▶";
+    }
+    function jawab(j) { if (!main) return; if (j === soal.y) { skor++; umpan = "✅ benar"; } else { salah++; umpan = "❌ " + GNAMA[soal.t] + "(" + soal.a.join(",") + ") = " + soal.y; } baru(); draw(); }
+    $$(el, "[data-j]").forEach(function (b) { b.onclick = function () { jawab(+b.dataset.j); }; });
+    el.querySelector("[data-a=mulai]").onclick = function () { if (main) return; main = true; sisa = 30; skor = 0; salah = 0; umpan = ""; baru(); draw(); };
+    var kb = function (e) { if (!document.body.contains(el)) { document.removeEventListener("keydown", kb); return; } if (e.key === "0" || e.key === "1") jawab(+e.key); };
+    document.addEventListener("keydown", kb);
+    draw();
+    loop(el, function (dt) { if (!main) return; sisa -= dt; if (sisa <= 0) { main = false; var naik = skor > best; if (naik) { best = skor; try { localStorage.setItem("ed_kilat_best", String(best)); } catch (e) { } } umpan = "🏁 Selesai! Skor " + skor + (naik ? " · 🏆 REKOR BARU!" : "") + (skor >= 25 ? " · Master gerbang!" : skor >= 15 ? " · Hebat!" : " · Ayo coba lagi!"); } draw(); });
+  };
   function mount(root) { $$(root, "[data-anim]").forEach(function (el) { var fn = A[el.dataset.anim]; if (fn && !el.dataset.on) { el.dataset.on = 1; el.classList.add("anim"); try { fn(el); } catch (e) { el.textContent = "(animasi gagal dimuat: " + e.message + ")"; } } }); }
   return { gambar: gambar, mount: mount, parseSpec: parseSpec, fR: fR };
 })();
