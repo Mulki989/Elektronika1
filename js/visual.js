@@ -1098,6 +1098,138 @@ var Visual = (function () {
     ins.forEach(function (i) { i.addEventListener("input", draw); });
     draw(); loop(el, function (dt) { if (play) { t += dt * 2; draw(); } });
   };
+  /* =================== ANIMASI MATERI 8: FET =================== */
+  function jfetSym(x, y, p, c, lab) {   // gate di (x-26,y); drain (x+22,y-40); source (x+22,y+40)
+    c = c || INK; var s = line(x, y - 24, x, y + 24, c, 3.4) + line(x, y - 16, x + 22, y - 16, c) + line(x + 22, y - 16, x + 22, y - 40, c) + line(x, y + 16, x + 22, y + 16, c) + line(x + 22, y + 16, x + 22, y + 40, c) + line(x - 26, y + 8, x, y + 8, c);
+    s += p ? '<polygon points="' + (x - 18) + "," + (y + 3) + " " + (x - 18) + "," + (y + 13) + " " + (x - 7) + "," + (y + 8) + '" fill="' + c + '" transform="rotate(180 ' + (x - 13) + " " + (y + 8) + ')"/>' : '<polygon points="' + (x - 13) + "," + (y + 3) + " " + (x - 13) + "," + (y + 13) + " " + (x - 2) + "," + (y + 8) + '" fill="' + c + '"/>';
+    if (lab !== false) s += txt(x - 30, y + 4, "G", { size: 10, a: "end", c: MUT }) + txt(x + 28, y - 32, "D", { size: 10, a: "start", c: MUT }) + txt(x + 28, y + 38, "S", { size: 10, a: "start", c: MUT });
+    return s;
+  }
+  function mosSym(x, y, tipe, p, c, lab) {   // tipe "e" atau "d"
+    c = c || INK; var s = line(x - 8, y - 20, x - 8, y + 20, c, 2.6) + line(x - 30, y + 14, x - 8, y + 14, c);
+    s += tipe === "e" ? line(x, y - 22, x, y - 10, c, 3.4) + line(x, y - 5, x, y + 5, c, 3.4) + line(x, y + 10, x, y + 22, c, 3.4) : line(x, y - 22, x, y + 22, c, 3.4);
+    s += line(x, y - 16, x + 22, y - 16, c) + line(x + 22, y - 16, x + 22, y - 40, c) + line(x, y + 16, x + 22, y + 16, c) + line(x + 22, y + 16, x + 22, y + 40, c) + line(x, y, x + 22, y, c) + line(x + 22, y, x + 22, y + 16, c);
+    s += p ? '<polygon points="' + (x + 4) + "," + y + " " + (x + 14) + "," + (y - 5) + " " + (x + 14) + "," + (y + 5) + '" fill="' + c + '" transform="rotate(180 ' + (x + 9) + " " + y + ')"/>' : '<polygon points="' + (x + 2) + "," + y + " " + (x + 12) + "," + (y - 5) + " " + (x + 12) + "," + (y + 5) + '" fill="' + c + '"/>';
+    if (lab !== false) s += txt(x - 34, y + 18, "G", { size: 10, a: "end", c: MUT }) + txt(x + 28, y - 32, "D", { size: 10, a: "start", c: MUT }) + txt(x + 28, y + 38, "S", { size: 10, a: "start", c: MUT });
+    return s;
+  }
+  G.fetsimbol = function () {
+    var s = jfetSym(50, 70, false, COP) + jfetSym(130, 70, true, COP) + mosSym(220, 70, "e", false, COP) + mosSym(305, 70, "d", false, COP);
+    s += txt(60, 136, "JFET-n", { size: 10.5, b: 1 }) + txt(140, 136, "JFET-p", { size: 10.5, b: 1 }) + txt(230, 136, "E-MOSFET", { size: 10.5, b: 1 }) + txt(312, 136, "D-MOSFET", { size: 10.5, b: 1 });
+    s += txt(60, 150, "panah masuk", { size: 9, c: MUT }) + txt(140, 150, "panah keluar", { size: 9, c: MUT }) + txt(230, 150, "kanal terputus", { size: 9, c: MUT }) + txt(312, 150, "kanal utuh", { size: 9, c: MUT });
+    return svg(340, 160, s);
+  };
+  function jfetCkt(p, mode, st) {   // mode "self" / "vdb"
+    st = st || {};
+    var s = line(120, 15, 200, 15) + txt(160, 10, "+V_DD = " + f(p.VDD, 1) + " V", { size: 10.5, b: 1 }) + resV(200, 15, 66) + txt(212, 42, "R_D = " + fR(p.RD), { size: 10, a: "start", b: 1 }) + line(200, 66, 200, 70) + jfetSym(178, 110, false, COP, false) + line(200, 150, 200, 156) + resV(200, 156, 200) + txt(212, 182, "R_S = " + fR(p.RS), { size: 10, a: "start", b: 1 }) + gnd(200, 200);
+    s += line(152, 118, 120, 118) + dot(120, 118) + resV(120, 128, 200) + line(120, 118, 120, 128) + gnd(120, 200);
+    if (mode === "vdb") s += resV(120, 15, 108) + line(120, 108, 120, 118) + txt(108, 62, "R1 = " + fR(p.R1), { size: 10, a: "end", b: 1 }) + txt(108, 166, "R2 = " + fR(p.R2), { size: 10, a: "end", b: 1 });
+    else s += txt(108, 166, "R_G = " + fR(p.RG || 10e6), { size: 10, a: "end", b: 1 });
+    if (st.ID != null) s += txt(212, 80, "V_D = " + f(st.VD, 2) + " V", { size: 9.5, a: "start", c: BLU }) + txt(212, 150, "V_S = " + f(st.VS, 2) + " V", { size: 9.5, a: "start", c: BLU }) + txt(150, 136, "V_G = " + f(st.VG, 2) + " V", { size: 9.5, a: "end", c: BLU }) + txt(330, 116, "I_D = " + f(st.ID * 1000, 2) + " mA", { size: 10.5, a: "end", b: 1, c: GRN });
+    return s;
+  }
+  G.jfetbias = function (p) { return svg(340, 215, jfetCkt({ VDD: +p.VDD || 15, RD: +p.RD || 1000, RS: +p.RS || 220, RG: +p.RG || 10e6, R1: +p.R1 || 6.8e6, R2: +p.R2 || 1e6 }, p.mode || "self")); };
+  function shockley(VGS, IDSS, VGSoff) { if (VGS <= VGSoff) return 0; return IDSS * Math.pow(1 - VGS / VGSoff, 2); }
+  A.jfetkanal = function (el) {
+    var t = 0, IDSS = 12, Voff = -4;
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 200"><g class="c"></g></svg><div class="readout jr"></div><div class="ctrl">' + slider("V_GS", -4, 0, 0.1, 0, "V") + slider("V_DS", 0, 15, 0.1, 8, "V") + "</div>";
+    var ins = $$(el, "input");
+    function draw(dt) {
+      var VGS = +ins[0].value, VDS = +ins[1].value; $$(el, ".val")[0].textContent = f(VGS, 1); $$(el, ".val")[1].textContent = f(VDS, 1);
+      var VP = -Voff, sat = VDS >= VGS - Voff, ID = VGS <= Voff ? 0 : sat ? shockley(VGS, IDSS, Voff) : IDSS * (2 * (1 - VGS / Voff) * (VDS / VP) - Math.pow(VDS / VP, 2));
+      var x0 = 60, x1 = 280, yc = 100, H = 40, s = '<rect x="' + x0 + '" y="' + (yc - H) + '" width="' + (x1 - x0) + '" height="' + 2 * H + '" fill="#e3ecfb" stroke="#9aa5a0"/>';
+      var top = [], bot = [];
+      for (var k = 0; k <= 20; k++) { var u = k / 20, vloc = Math.min(VDS, VP) * u, w = Math.min(H, H * 0.25 + H * 0.75 * Math.sqrt(Math.max(0, (vloc - VGS)) / VP)); top.push((x0 + u * (x1 - x0)) + "," + (yc - H + w)); bot.push((x0 + u * (x1 - x0)) + "," + (yc + H - w)); }
+      s += '<polygon points="' + x0 + "," + (yc - H) + " " + top.join(" ") + " " + x1 + "," + (yc - H) + '" fill="#fffdf6" stroke="' + COP + '" stroke-dasharray="4 3"/>' + '<polygon points="' + x0 + "," + (yc + H) + " " + bot.join(" ") + " " + x1 + "," + (yc + H) + '" fill="#fffdf6" stroke="' + COP + '" stroke-dasharray="4 3"/>';
+      s += '<rect x="120" y="' + (yc - H - 16) + '" width="100" height="16" fill="#f6e7d8" stroke="#9aa5a0"/><rect x="120" y="' + (yc + H) + '" width="100" height="16" fill="#f6e7d8" stroke="#9aa5a0"/>' + txt(170, yc - H - 4, "P (gate)", { size: 9.5, b: 1 }) + txt(170, yc + H + 12, "P (gate)", { size: 9.5, b: 1 });
+      s += txt(x0 - 6, yc + 4, "S", { size: 12, a: "end", b: 1 }) + txt(x1 + 6, yc + 4, "D", { size: 12, a: "start", b: 1 }) + txt(170, yc + 4, "kanal n", { size: 10, c: MUT });
+      t += (dt || 0) * ID / IDSS * 1.2; for (var i = 0; i < 14; i++) { var u2 = ((i / 14) + t) % 1, X = x0 + u2 * (x1 - x0); s += '<circle cx="' + X + '" cy="' + (yc + ((i % 3) - 1) * 6) + '" r="3" fill="' + BLU + '"/>'; }
+      s += txt(170, 190, "daerah deplesi (putus-putus) melebar bila V_GS makin negatif", { size: 9.5, c: MUT });
+      el.querySelector(".c").innerHTML = s;
+      el.querySelector(".jr").innerHTML = (VGS <= Voff ? '<span class="tag mid">CUT-OFF: kanal tertutup</span>' : sat ? '<span class="tag ok">Arus konstan (V_DS ≥ V_GS − V_GS(off))</span>' : '<span class="tag no">Daerah ohmik (V_DS kecil)</span>') + " I_DSS = 12 mA, V_GS(off) = −4 V · I_D = <b>" + f(ID, 2) + " mA</b>" + (sat && VGS > Voff ? " = I_DSS(1 − V_GS/V_GS(off))²" : "");
+    }
+    ins.forEach(function (i) { i.addEventListener("input", function () { draw(0); }); });
+    draw(0); loop(el, function (dt) { draw(dt); });
+  };
+  A.jfetkurva = function (el) {
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 210"><g class="g"></g></svg><div class="readout kr"></div><div class="ctrl">' + slider("I_DSS", 2, 20, 1, 9, "mA") + slider("V_GS(off)", -10, -1, 0.5, -8, "V") + slider("V_GS", -10, 0, 0.1, -1, "V") + "</div>";
+    var ins = $$(el, "input");
+    function draw() {
+      var IDSS = +ins[0].value, Vo = +ins[1].value; ins[2].min = Vo; var VGS = Math.max(Vo, +ins[2].value); $$(el, ".val")[0].textContent = IDSS; $$(el, ".val")[1].textContent = f(Vo, 1); $$(el, ".val")[2].textContent = f(VGS, 1);
+      var ID = shockley(VGS, IDSS, Vo), xm = 165, y0 = 175, H = 140, Wl = 130, Wr = 140, Y = function (i) { return y0 - i / IDSS * H * 0.95; };
+      var s = line(20, y0, xm, y0, INK, 1.5) + line(xm, y0, xm, 25, INK, 1.5) + line(xm, y0, xm + Wr, y0, INK, 1.5) + txt(30, y0 + 16, "V_GS(off)", { size: 9.5, c: MUT, a: "start" }) + txt(xm - 4, y0 + 16, "0", { size: 9.5, c: MUT, a: "end" }) + txt(25, 34, "kurva transfer", { size: 10, b: 1, a: "start" }) + txt(xm + Wr, 34, "kurva drain", { size: 10, b: 1, a: "end" }) + txt(xm + 4, 22, "I_D", { size: 10, a: "start" }) + txt(xm + Wr, y0 + 16, "V_DS", { size: 9.5, a: "end", c: MUT });
+      var pt = []; for (var k = 0; k <= 50; k++) { var v = Vo + (0 - Vo) * k / 50; pt.push((xm - (v / Vo) * Wl) + "," + Y(shockley(v, IDSS, Vo))); }
+      s += poly(pt.join(" "), COP, 2.8) + txt(xm - 6, Y(IDSS) + 4, "I_DSS", { size: 9.5, a: "end", c: COP });
+      var xq = xm - (VGS / Vo) * Wl; s += line(xq, y0, xq, Y(ID), BLU, 1).replace("/>", ' stroke-dasharray="3 3"/>') + line(xq, Y(ID), xm + Wr, Y(ID), BLU, 1).replace("/>", ' stroke-dasharray="3 3"/>') + '<circle cx="' + xq + '" cy="' + Y(ID) + '" r="5" fill="' + BLU + '"/>';
+      [0, 0.25, 0.5, 0.75].forEach(function (fr) { var vg = Vo * fr, idd = shockley(vg, IDSS, Vo), vp = -(Vo - vg) / 1, pts = []; for (var q = 0; q <= 30; q++) { var vd = q / 30 * 15, idv = vd < vp ? IDSS * (2 * (1 - vg / Vo) * (vd / -Vo) - Math.pow(vd / -Vo, 2)) : idd; pts.push((xm + vd / 15 * Wr) + "," + Y(Math.max(0, Math.min(idv, idd)))); } s += poly(pts.join(" "), "#9aa5a0", 1.3); });
+      var ptsq = []; for (var q2 = 0; q2 <= 30; q2++) { var vd2 = q2 / 30 * 15, vp2 = VGS - Vo, idv2 = vd2 < vp2 ? IDSS * (2 * (1 - VGS / Vo) * (vd2 / -Vo) - Math.pow(vd2 / -Vo, 2)) : ID; ptsq.push((xm + vd2 / 15 * Wr) + "," + Y(Math.max(0, Math.min(idv2, ID)))); }
+      s += poly(ptsq.join(" "), BLU, 2.2);
+      el.querySelector(".g").innerHTML = s;
+      el.querySelector(".kr").innerHTML = "I_D = I_DSS(1 − V_GS/V_GS(off))² = " + IDSS + " × (1 − " + f(VGS, 1) + "/" + f(Vo, 1) + ")² = " + IDSS + " × " + f(Math.pow(1 - VGS / Vo, 2), 4) + " = <b>" + f(ID, 3) + " mA</b> · g_m = " + f(2 * IDSS / -Vo * (1 - VGS / Vo), 3) + " mS";
+    }
+    ins.forEach(function (i) { i.addEventListener("input", draw); }); draw();
+  };
+  A.jfetbiasim = function (el) {
+    var mode = el.dataset.mode || "self", IDSS = 12e-3, Vo = -4;
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 215"><g class="c"></g></svg><svg class="diag" viewBox="0 0 340 180"><g class="g"></g></svg><div class="readout br"></div><div class="ctrl"><button class="btn sm ghost" data-m="self">Self-bias</button><button class="btn sm ghost" data-m="vdb">Pembagi tegangan</button></div><div class="ctrl">' + slider("R_S", 50, 3000, 10, 330, "Ω") + slider("V_G (pembagi)", 0, 6, 0.1, 2, "V") + "</div>";
+    var ins = $$(el, "input");
+    function draw() {
+      var RS = +ins[0].value, VG = mode === "vdb" ? +ins[1].value : 0; $$(el, ".val")[0].textContent = RS; $$(el, ".val")[1].textContent = f(VG, 1);
+      var lo = Vo, hi = 0; for (var i = 0; i < 60; i++) { var m = (lo + hi) / 2, idm = shockley(m, IDSS, Vo); if (VG - idm * RS > m) lo = m; else hi = m; }   // V_GS = V_G − I_D·R_S
+      var VGS = (lo + hi) / 2, ID = shockley(VGS, IDSS, Vo), VDD = 15, RD = 560, VS = ID * RS, VD = VDD - ID * RD;
+      el.querySelector(".c").innerHTML = jfetCkt({ VDD: VDD, RD: RD, RS: RS, R1: 6.8e6, R2: 1e6 }, mode, { ID: ID, VD: VD, VS: VS, VG: VG });
+      var x0 = 30, xm = 230, y0 = 160, W = xm - x0, H = 130, X = function (v) { return xm + v / -Vo * W; }, Y = function (i) { return y0 - i / IDSS * H; }, s = line(x0, y0, 330, y0, INK, 1.5) + line(xm, y0, xm, 20, INK, 1.5) + txt(xm + 4, 18, "I_D", { size: 10, a: "start" }) + txt(x0, y0 + 14, "−4 V", { size: 9.5, c: MUT, a: "start" }) + txt(330, y0 + 14, "V_GS", { size: 9.5, c: MUT, a: "end" });
+      var pt = []; for (var k = 0; k <= 50; k++) { var v = Vo * (1 - k / 50); pt.push(X(v) + "," + Y(shockley(v, IDSS, Vo))); } s += poly(pt.join(" "), COP, 2.8);
+      var vA = Vo * 1.05, vB = Math.min(VG, 4); s += line(X(vA), Y((VG - vA) / RS), X(vB), Y(Math.max(0, (VG - vB) / RS)), BLU, 2).replace("/>", ' stroke-dasharray="6 3"/>');
+      s += '<circle cx="' + X(VGS) + '" cy="' + Y(ID) + '" r="6" fill="' + GRN + '"/>' + txt(X(VGS) - 8, Y(ID) - 8, "Q", { size: 12, b: 1, a: "end", c: GRN }) + txt(x0, 14, "tembaga: kurva transfer · biru: garis bias", { size: 9.5, a: "start", c: MUT });
+      el.querySelector(".g").innerHTML = s;
+      el.querySelector(".br").innerHTML = "I_DSS = 12 mA, V_GS(off) = −4 V · garis bias: V_GS = " + (mode === "vdb" ? "V_G − " : "−") + "I_D·R_S · Q: V_GS = <b>" + f(VGS, 2) + " V</b>, I_D = <b>" + f(ID * 1000, 2) + " mA</b> · V_DS = " + f(VD - VS, 2) + " V" + (VD - VS < VGS - Vo ? ' <span class="tag no">ohmik</span>' : "");
+      $$(el, "[data-m]").forEach(function (x) { x.classList.toggle("on", x.dataset.m === mode); });
+    }
+    $$(el, "[data-m]").forEach(function (x) { x.onclick = function () { mode = x.dataset.m; draw(); }; });
+    ins.forEach(function (i) { i.addEventListener("input", draw); }); draw();
+  };
+  A.mosfet = function (el) {
+    var tipe = "e";
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 170"><g class="c"></g></svg><svg class="diag" viewBox="0 0 340 170"><g class="g"></g></svg><div class="readout mr"></div><div class="ctrl"><button class="btn sm ghost" data-t="e">E-MOSFET</button><button class="btn sm ghost" data-t="d">D-MOSFET</button></div><div class="ctrl">' + slider("V_GS", -8, 10, 0.1, 5, "V") + "</div>";
+    var sl = el.querySelector("input");
+    function draw() {
+      var VGS = +sl.value; el.querySelector(".val").textContent = f(VGS, 1);
+      var ID, chan, th = 1, K = 500 / 81, IDSS = 10, Vo = -8;
+      if (tipe === "e") { ID = VGS > th ? K * Math.pow(VGS - th, 2) : 0; chan = VGS > th ? Math.min(1, (VGS - th) / 6) : 0; }
+      else { ID = VGS <= Vo ? 0 : IDSS * Math.pow(1 - VGS / Vo, 2); chan = Math.max(0, Math.min(1, (VGS - Vo) / 12)); }
+      var s = '<rect x="40" y="70" width="260" height="80" fill="#f6e7d8" stroke="#9aa5a0"/>' + txt(170, 145, "substrat tipe-p", { size: 10, c: MUT }) + '<rect x="40" y="70" width="60" height="28" fill="#e3ecfb" stroke="#9aa5a0"/><rect x="240" y="70" width="60" height="28" fill="#e3ecfb" stroke="#9aa5a0"/>' + txt(70, 89, "n+ S", { size: 10.5, b: 1 }) + txt(270, 89, "n+ D", { size: 10.5, b: 1 });
+      s += '<rect x="100" y="56" width="140" height="10" fill="#d1d5db" stroke="#9aa5a0"/>' + txt(170, 64, "SiO₂", { size: 8.5 }) + '<rect x="100" y="40" width="140" height="16" fill="#9aa5a0"/>' + txt(170, 52, "Gate (logam)", { size: 9.5, c: "#fff", b: 1 });
+      if (tipe === "d") s += '<rect x="100" y="70" width="140" height="' + (4 + chan * 12) + '" fill="#bcd2f7" opacity=".9"/>' + txt(170, 110, chan > 0.66 ? "kanal diperkaya (enhancement)" : chan > 0.02 ? "kanal n bawaan (deplesi)" : "kanal habis", { size: 9.5, c: BLU });
+      else if (chan > 0) s += '<rect x="100" y="70" width="140" height="' + (3 + chan * 12) + '" fill="#bcd2f7" opacity=".9"/>' + txt(170, 110, "lapisan inversi n terbentuk", { size: 9.5, c: BLU });
+      else s += txt(170, 110, "belum ada kanal (V_GS < V_GS(th))", { size: 9.5, c: RED });
+      s += txt(170, 22, "V_GS = " + f(VGS, 1) + " V", { size: 11, b: 1, c: VGS >= 0 ? COP : BLU });
+      el.querySelector(".c").innerHTML = s;
+      var xm = tipe === "e" ? 60 : 200, y0 = 150, x0 = 30, x1 = 320, Im = tipe === "e" ? 500 : 30, X = function (v) { return tipe === "e" ? xm + v / 10 * (x1 - xm) : xm + v / 10 * (x1 - xm) * 1.2; }, Y = function (i) { return y0 - Math.min(i, Im) / Im * 125; };
+      var g = line(x0, y0, x1, y0, INK, 1.5) + line(xm, y0, xm, 18, INK, 1.5) + txt(xm + 4, 16, "I_D (mA)", { size: 9.5, a: "start" }) + txt(x1, y0 + 14, "V_GS", { size: 9.5, a: "end", c: MUT }) + txt(xm, y0 + 14, "0", { size: 9.5, c: MUT }), pts = [];
+      for (var k = 0; k <= 80; k++) { var v = tipe === "e" ? k / 80 * 10 : -8 + k / 80 * 14, i = tipe === "e" ? (v > th ? K * Math.pow(v - th, 2) : 0) : (v <= Vo ? 0 : IDSS * Math.pow(1 - v / Vo, 2)); if (i > Im) break; pts.push(X(v) + "," + Y(i)); }
+      g += poly(pts.join(" "), COP, 2.8) + '<circle cx="' + X(VGS) + '" cy="' + Y(ID) + '" r="5" fill="' + BLU + '"/>';
+      if (tipe === "e") g += txt(X(th), y0 + 14, "V_GS(th)", { size: 9, c: RED }); else g += txt(xm - 4, Y(IDSS) + 4, "I_DSS", { size: 9.5, a: "end", c: COP }) + txt(X(-8), y0 + 14, "V_GS(off)", { size: 9, c: RED });
+      el.querySelector(".g").innerHTML = g;
+      el.querySelector(".mr").innerHTML = tipe === "e" ? "E-MOSFET (2N7008: V_GS(th) = 1 V, K = 6,17 mA/V²) · I_D = K(V_GS − V_GS(th))² = <b>" + f(ID, 1) + " mA</b>" + (VGS <= th ? " (OFF)" : "") : "D-MOSFET (I_DSS = 10 mA, V_GS(off) = −8 V) · I_D = I_DSS(1 − V_GS/V_GS(off))² = <b>" + f(ID, 2) + " mA</b> · mode " + (VGS < 0 ? "deplesi" : "enhancement");
+      $$(el, "[data-t]").forEach(function (x) { x.classList.toggle("on", x.dataset.t === tipe); });
+    }
+    $$(el, "[data-t]").forEach(function (x) { x.onclick = function () { tipe = x.dataset.t; sl.value = tipe === "e" ? 5 : -3; draw(); }; });
+    sl.addEventListener("input", draw); draw();
+  };
+  A.mosfetsaklar = function (el) {
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 200"><g class="c"></g></svg><table class="tabel small ms" style="margin:4px 0"></table><div class="ctrl">' + slider("V_GS dari pin", 0, 10, 0.1, 5, "V") + slider("I beban", 0.5, 10, 0.5, 3, "A") + "</div>";
+    var ins = $$(el, "input");
+    function draw() {
+      var VGS = +ins[0].value, IL = +ins[1].value; $$(el, ".val")[0].textContent = f(VGS, 1); $$(el, ".val")[1].textContent = f(IL, 1);
+      var th = 1.5, Ron = VGS <= th ? Infinity : VGS >= 4.5 ? 0.025 : 0.025 * Math.pow(3 / (VGS - th), 2), I = isFinite(Ron) ? IL : 0, P = I * I * (isFinite(Ron) ? Ron : 0), Pbjt = IL * 0.3;
+      var glow = I / IL, s = line(150, 15, 280, 15) + txt(215, 10, "+12 V", { size: 10, b: 1 }) + '<rect x="185" y="22" width="30" height="44" rx="4" fill="' + (glow > 0.9 ? "#fde68a" : glow > 0.1 ? "#fef3c7" : "#f3f4f6") + '" stroke="#9aa5a0"/>' + txt(200, 48, "beban", { size: 9 }) + line(200, 15, 200, 22) + line(200, 66, 200, 72);
+      s += mosSym(178, 112, "e", false, I > 0 ? COP : INK) + line(200, 152, 200, 185) + gnd(200, 185) + line(148, 126, 90, 126) + resH(90, 140, 126).replace(resH(90, 140, 126), resH(100, 140, 126)) + txt(120, 116, "100 Ω", { size: 9 }) + '<rect x="30" y="114" width="60" height="24" rx="4" fill="' + COP + '"/>' + txt(60, 130, "pin " + f(VGS, 1) + " V", { size: 9.5, c: "#fff", b: 1 }) + resV(150, 132, 185) + line(140, 126, 150, 126) + line(150, 126, 150, 132) + txt(162, 165, "10 kΩ", { size: 9, a: "start" }) + gnd(150, 185) + line(90, 126, 100, 126);
+      el.querySelector(".c").innerHTML = s;
+      el.querySelector(".ms").innerHTML = "<tr><th>R_DS(on)</th><th>I beban</th><th>P MOSFET = I²·R_DS(on)</th><th>Bandingkan BJT (V_CE(sat) 0,3 V)</th></tr><tr><td>" + (isFinite(Ron) ? f(Ron * 1000, 1) + " mΩ" : "∞ (OFF)") + "</td><td>" + f(I, 2) + " A</td><td><b>" + f(P, 3) + " W</b></td><td>" + f(Pbjt, 2) + " W + arus basis besar</td></tr><tr><td colspan=4>" + (VGS <= th ? '<span class="tag mid">V_GS di bawah ambang: MOSFET OFF</span>' : VGS < 4.5 ? '<span class="tag no">V_GS kurang: R_DS(on) besar, MOSFET panas</span>' : '<span class="tag ok">Logic-level ON penuh: hampir tanpa rugi, arus gate ≈ 0</span>') + "</td></tr>";
+    }
+    ins.forEach(function (i) { i.addEventListener("input", draw); }); draw();
+  };
   function mount(root) { $$(root, "[data-anim]").forEach(function (el) { var fn = A[el.dataset.anim]; if (fn && !el.dataset.on) { el.dataset.on = 1; el.classList.add("anim"); try { fn(el); } catch (e) { el.textContent = "(animasi gagal dimuat: " + e.message + ")"; } } }); }
   return { gambar: gambar, mount: mount, parseSpec: parseSpec, fR: fR };
 })();
