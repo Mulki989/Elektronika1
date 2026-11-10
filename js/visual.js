@@ -1005,6 +1005,99 @@ var Visual = (function () {
     ins.forEach(function (i) { i.addEventListener("input", draw); });
     draw(); loop(el, function (dt) { if (play) { t += dt * 0.4; draw(); } });
   };
+  /* =================== ANIMASI MATERI 7: BIAS & PENGUAT BJT =================== */
+  function capV(x, y) { return line(x - 13, y - 4, x + 13, y - 4, INK, 3) + line(x - 13, y + 4, x + 13, y + 4, INK, 3); }
+  function gnd(x, y) { return line(x - 10, y, x + 10, y, INK, 2) + line(x - 6, y + 4, x + 6, y + 4, INK, 1.6) + line(x - 2, y + 8, x + 2, y + 8, INK, 1.4); }
+  function vdbSVG(p, st) {   // bias pembagi tegangan: R1,R2,RC,RE (Ω), VCC
+    st = st || {};
+    var s = line(70, 15, 200, 15) + txt(135, 10, "+V_CC = " + f(p.VCC, 1) + " V", { size: 10.5, b: 1 }) + resV(70, 15, 100) + txt(82, 58, "R1 = " + fR(p.R1), { size: 10, a: "start", b: 1 }) + line(70, 100, 70, 120) + dot(70, 110) + resV(70, 120, 200) + txt(82, 162, "R2 = " + fR(p.R2), { size: 10, a: "start", b: 1 }) + gnd(70, 200);
+    s += line(70, 110, 154, 110) + bjtSym(178, 110, false, COP, false) + resV(200, 15, 66) + line(200, 66, 200, 70) + txt(212, 42, "R_C = " + fR(p.RC), { size: 10, a: "start", b: 1 }) + line(200, 150, 200, 156) + resV(200, 156, 200) + txt(212, 182, "R_E = " + fR(p.RE), { size: 10, a: "start", b: 1 }) + gnd(200, 200);
+    if (st.VB != null) s += txt(112, 126, "V_B = " + f(st.VB, 2) + " V", { size: 9.5, c: BLU, a: "middle" }) + txt(212, 150, "V_E = " + f(st.VE, 2) + " V", { size: 9.5, c: BLU, a: "start" }) + txt(212, 80, "V_C = " + f(st.VC, 2) + " V", { size: 9.5, c: BLU, a: "start" }) + txt(320, 116, "V_CE = " + f(st.VCE, 2) + " V", { size: 10.5, c: GRN, a: "end", b: 1 });
+    return s;
+  }
+  function vdbHitung(R1, R2, RC, RE, VCC, b) {
+    var VB = VCC * R2 / (R1 + R2), IEc = Math.max(0, (VB - 0.7) / RE), RTH = R1 * R2 / (R1 + R2), IEt = Math.max(0, (VB - 0.7) / (RE + RTH / b)), sat = VCC / (RC + RE);
+    var IC = Math.min(IEt, (VCC - 0.2) / (RC + RE)), VE = IEt * RE, VC = VCC - IC * RC;
+    return { VB: VB, IEc: IEc, IEt: IEt, RTH: RTH, IC: IC, VE: VE, VC: VC, VCE: VC - VE, VCEc: VCC - IEc * (RC + RE), sat: sat, stiff: b * RE >= 10 * R2 };
+  }
+  G.vdb = function (p) { return svg(340, 215, vdbSVG({ R1: +p.R1 || 10000, R2: +p.R2 || 5600, RC: +p.RC || 1000, RE: +p.RE || 560, VCC: +p.VCC || 10 })); };
+  function ceampSVG(o) {
+    o = o || {}; var on = o.C2 !== false;
+    var s = acSrc(20, 110, 200) + txt(38, 160, "v_s", { size: 10, a: "start", b: 1 }) + line(20, 110, 28, 110) + resH(28, 66, 110) + txt(47, 98, "R_s", { size: 9.5 }) + line(66, 110, 82, 110) + capH(86, 110) + txt(86, 92, "C1", { size: 9.5, b: 1 }) + line(90, 110, 154, 110) + gnd(20, 200);
+    s += line(110, 15, 200, 15) + txt(160, 10, "+V_CC", { size: 10, b: 1 }) + resV(110, 15, 100) + txt(98, 58, "R1", { size: 9.5, a: "end", b: 1 }) + line(110, 100, 110, 120) + dot(110, 110) + resV(110, 120, 200) + txt(98, 162, "R2", { size: 9.5, a: "end", b: 1 }) + gnd(110, 200);
+    s += bjtSym(178, 110, false, COP, false) + resV(200, 15, 66) + line(200, 66, 200, 70) + txt(188, 42, "R_C", { size: 9.5, a: "end", b: 1 }) + dot(200, 68) + line(200, 68, 238, 68) + capH(242, 68) + txt(242, 52, "C3", { size: 9.5, b: 1 }) + line(246, 68, 300, 68);
+    s += line(200, 150, 200, 156) + resV(200, 156, 200) + txt(188, 182, "R_E", { size: 9.5, a: "end", b: 1 }) + dot(200, 156) + line(200, 156, 240, 156) + line(240, 156, 240, 172) + (on ? capV(240, 176) : '<g opacity=".25">' + capV(240, 176) + "</g>") + line(240, 180, 240, 200) + txt(256, 180, on ? "C2" : "C2 (dilepas)", { size: 9.5, a: "start", b: 1, c: on ? INK : RED }) + gnd(200, 200) + gnd(240, 200);
+    if (o.RL !== 0) s += resV(300, 68, 200) + txt(312, 136, o.RLlab || "R_L", { size: 9.5, a: "start", b: 1 }) + gnd(300, 200); else s += txt(304, 72, "v_out", { size: 10, a: "start", b: 1, c: COP });
+    return s;
+  }
+  G.ceamp = function (p) { return svg(340, 215, ceampSVG({ C2: p.C2 !== "tidak", RL: p.RL === "tidak" ? 0 : 1 })); };
+  G.vdbcfg = function (p) {   // ilustrasi metode bias lain
+    var m = p.m || "base", s = "";
+    if (m === "base") s = line(70, 15, 200, 15) + resV(70, 15, 110) + txt(82, 64, "R_B", { size: 10.5, a: "start", b: 1 }) + line(70, 110, 154, 110) + bjtSym(178, 110, false, COP, false) + resV(200, 15, 70) + txt(212, 44, "R_C", { size: 10.5, a: "start", b: 1 }) + line(200, 150, 200, 190) + gnd(200, 190);
+    if (m === "emfb") s = line(70, 15, 200, 15) + resV(70, 15, 110) + txt(82, 64, "R_B", { size: 10.5, a: "start", b: 1 }) + line(70, 110, 154, 110) + bjtSym(178, 110, false, COP, false) + resV(200, 15, 70) + txt(212, 44, "R_C", { size: 10.5, a: "start", b: 1 }) + resV(200, 150, 195) + txt(212, 175, "R_E", { size: 10.5, a: "start", b: 1 }) + gnd(200, 195);
+    if (m === "cfb") s = line(130, 15, 200, 15) + resV(200, 15, 62) + txt(212, 40, "R_C", { size: 10.5, a: "start", b: 1 }) + line(200, 62, 200, 70) + dot(200, 64) + line(200, 64, 70, 64) + resV(70, 64, 110) + txt(58, 90, "R_B", { size: 10.5, a: "end", b: 1 }) + line(70, 110, 154, 110) + bjtSym(178, 110, false, COP, false) + line(200, 150, 200, 190) + gnd(200, 190) + txt(165, 10, "+V_CC", { size: 10, b: 1 });
+    if (m === "eb") s = line(200, 15, 260, 15) + txt(262, 18, "+V_CC", { size: 10, a: "start", b: 1 }) + resV(200, 15, 70) + txt(212, 44, "R_C", { size: 10.5, a: "start", b: 1 }) + gnd(70, 160) + resV(70, 110, 160) + line(70, 110, 154, 110) + txt(58, 138, "R_B", { size: 10.5, a: "end", b: 1 }) + bjtSym(178, 110, false, COP, false) + resV(200, 150, 200) + txt(212, 178, "R_E", { size: 10.5, a: "start", b: 1 }) + line(200, 200, 260, 200) + txt(262, 204, "−V_EE", { size: 10, a: "start", b: 1 });
+    if (m !== "cfb" && m !== "eb") s += txt(135, 10, "+V_CC", { size: 10, b: 1 });
+    return svg(340, 210, s);
+  };
+  A.vdbsim = function (el) {
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 215"><g class="c"></g></svg><svg class="diag" viewBox="0 0 340 200"><g class="g"></g></svg><table class="tabel small vt" style="margin:4px 0"></table><div class="ctrl">' + slider("R1", 1, 100, 0.1, 10, "kΩ") + slider("R2", 1, 47, 0.1, 5.6, "kΩ") + slider("β", 50, 400, 10, 100, "") + '</div><div class="ctrl">' + slider("R_C", 0.1, 5, 0.1, 1, "kΩ") + slider("R_E", 0.1, 3, 0.01, 0.56, "kΩ") + slider("V_CC", 5, 20, 1, 10, "V") + "</div>";
+    var ins = $$(el, "input");
+    function draw() {
+      var v = ins.map(function (i) { return +i.value; }), R1 = v[0] * 1000, R2 = v[1] * 1000, b = v[2], RC = v[3] * 1000, RE = v[4] * 1000, VCC = v[5];
+      [f(v[0], 1), f(v[1], 1), b, f(v[3], 1), f(v[4], 2), VCC].forEach(function (x, i) { $$(el, ".val")[i].textContent = x; });
+      var r = vdbHitung(R1, R2, RC, RE, VCC, b), r2 = vdbHitung(R1, R2, RC, RE, VCC, b * 2);
+      el.querySelector(".c").innerHTML = vdbSVG({ R1: R1, R2: R2, RC: RC, RE: RE, VCC: VCC }, { VB: r.VB, VE: r.VE, VC: r.VC, VCE: r.VCE });
+      var x0 = 44, y0 = 170, W = 250, H = 140, Im = r.sat * 1000 * 1.15, X = function (x) { return x0 + x / VCC * W; }, Y = function (i) { return y0 - i / Im * H; }, s = axes(x0, y0, W, H, "V_CE (V)", "I_C (mA)");
+      s += line(X(0), Y(r.sat * 1000), X(VCC), Y(0), COP, 2.4) + txt(x0 - 4, Y(r.sat * 1000) + 4, f(r.sat * 1000, 2), { size: 9.5, a: "end", c: COP }) + txt(X(VCC), y0 + 14, f(VCC, 0) + " V", { size: 9.5, c: COP });
+      s += '<circle cx="' + X(r2.VCE) + '" cy="' + Y(r2.IC * 1000) + '" r="5" fill="none" stroke="' + BLU + '" stroke-width="2"/>' + '<circle cx="' + X(Math.max(0, r.VCE)) + '" cy="' + Y(r.IC * 1000) + '" r="6" fill="' + GRN + '"/>' + txt(X(Math.max(0, r.VCE)) + 8, Y(r.IC * 1000) - 8, "Q", { size: 12, b: 1, a: "start", c: GRN }) + txt(x0, 196, "lingkaran biru = Q bila β digandakan", { size: 9.5, a: "start", c: MUT });
+      el.querySelector(".g").innerHTML = s;
+      var dP = (r2.IC - r.IC) / r.IC * 100;
+      el.querySelector(".vt").innerHTML = "<tr><th></th><th>Cara cepat (I_B diabaikan)</th><th>Thevenin (akurat)</th></tr><tr><td>I_E ≈ I_C</td><td>" + f(r.IEc * 1000, 2) + " mA</td><td><b>" + f(r.IEt * 1000, 2) + " mA</b></td></tr><tr><td>V_CE</td><td>" + f(r.VCEc, 2) + " V</td><td><b>" + f(r.VCE, 2) + " V</b></td></tr><tr><td colspan=3>" + (r.stiff ? '<span class="tag ok">β·R_E = ' + fR(b * RE) + " ≥ 10·R2 = " + fR(10 * R2) + ": pembagi \"kaku\", cara cepat valid</span>" : '<span class="tag mid">β·R_E = ' + fR(b * RE) + " &lt; 10·R2 = " + fR(10 * R2) + ": pakai Thevenin</span>") + " · β ×2 → I_C berubah <b>" + f(dP, 1) + "%</b>" + (r.VCE < 0.3 ? ' · <span class="tag no">saturasi</span>' : "") + "</td></tr>";
+    }
+    ins.forEach(function (i) { i.addEventListener("input", draw); }); draw();
+  };
+  A.biasbanding = function (el) {
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 210"><g class="c"></g></svg><div class="readout bb"></div><div class="ctrl">' + slider("β transistor pengganti", 50, 400, 10, 200, "") + "</div>";
+    var sl = el.querySelector("input");
+    var M = [
+      ["Base bias", function (b) { return b * (12 - 0.7) / 330000; }],
+      ["Emitter-feedback", function (b) { return (12 - 0.7) / (1000 + 470000 / b); }],
+      ["Collector-feedback", function (b) { return (10 - 0.7) / (10000 + 180000 / b); }],
+      ["Emitter bias", function (b) { return (10 - 0.7) / (10000 + 100000 / b); }],
+      ["Pembagi tegangan", function (b) { return (3.59 - 0.7) / (560 + 3590 / b); }]];
+    function draw() {
+      var b = +sl.value; el.querySelector(".val").textContent = b;
+      var s = txt(10, 14, "Perubahan I_C bila β = 100 diganti β = " + b, { size: 10.5, a: "start", b: 1 }), x0 = 130, W = 180, mx = 200;
+      M.forEach(function (m, i) {
+        var d = (m[1](b) - m[1](100)) / m[1](100) * 100, w = Math.min(W, Math.abs(d) / mx * W), y = 34 + i * 34, c = Math.abs(d) < 10 ? GRN : Math.abs(d) < 40 ? COP : RED;
+        s += txt(x0 - 8, y + 14, m[0], { size: 10.5, a: "end", b: 1 }) + '<rect x="' + (d >= 0 ? x0 : x0 - w) + '" y="' + y + '" width="' + Math.max(1, w) + '" height="20" rx="4" fill="' + c + '"/>' + txt(x0 + (d >= 0 ? w + 6 : 6), y + 14, (d >= 0 ? "+" : "") + f(d, 1) + "%", { size: 10.5, a: "start" });
+      });
+      el.querySelector(".c").innerHTML = s + line(x0, 30, x0, 204, INK, 1);
+      el.querySelector(".bb").innerHTML = "Angka memakai komponen contoh di slide masing-masing. Makin pendek batang, makin stabil titik Q terhadap pergantian transistor atau perubahan suhu.";
+    }
+    sl.addEventListener("input", draw); draw();
+  };
+  A.ceamp = function (el) {
+    var c2 = true, t = 0, play = true, RLs = [0, 10000, 5000, 1000, 100, 8], RC = 1000, RE = 560, re = 6.58;
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 215"><g class="c"></g></svg><svg class="diag" viewBox="0 0 340 130"><g class="w"></g></svg><div class="readout ca"></div><div class="ctrl"><button class="btn sm ghost" data-c="1">C2 terpasang</button><button class="btn sm ghost" data-c="0">C2 dilepas</button><button class="btn sm ghost" data-a="p">❚❚</button></div><div class="ctrl">' + slider("R_L", 0, 5, 1, 0, "") + slider("v_b puncak", 1, 40, 1, 10, "mV") + "</div>";
+    var ins = $$(el, "input");
+    function draw() {
+      var RL = RLs[+ins[0].value], vb = +ins[1].value / 1000, lab = RL ? fR(RL) : "tanpa beban";
+      $$(el, ".val")[0].textContent = lab; $$(el, ".val")[1].textContent = vb * 1000;
+      var Rc = RL ? RC * RL / (RC + RL) : RC, Av = Rc / (re + (c2 ? 0 : RE)), vc = Av * vb, lim = Math.min(3.58e-3 * Rc, 6.42 - 0.3), clip = vc > lim;
+      el.querySelector(".c").innerHTML = ceampSVG({ C2: c2, RL: RL ? 1 : 0, RLlab: "R_L = " + lab });
+      var x0 = 20, W = 300, pi = [], po = [], sc = 50 / Math.max(vc, vb * 1, 0.05);
+      for (var k = 0; k <= 200; k++) { var th = k / 200 * 4 * Math.PI + t, vi = vb * Math.sin(th), vo = -Math.max(-lim, Math.min(lim, vc * Math.sin(th))); pi.push((x0 + k / 200 * W) + "," + (65 - vi / vb * 12)); po.push((x0 + k / 200 * W) + "," + (65 - vo / Math.max(vc, lim) * 50)); }
+      el.querySelector(".w").innerHTML = line(x0, 65, x0 + W, 65, "#c7cfca", 1) + poly(pi.join(" "), BLU, 1.8) + poly(po.join(" "), COP, 2.6) + txt(x0, 12, "v_b (biru, diperbesar) · v_out (tembaga, terbalik)", { size: 9.5, a: "start", c: MUT });
+      el.querySelector(".ca").innerHTML = "R_c = " + (RL ? "R_C ∥ R_L = " : "R_C = ") + f(Rc, 1) + " Ω · A_v = R_c/(r'_e" + (c2 ? "" : " + R_E") + ") = " + f(Rc, 1) + "/" + f(re + (c2 ? 0 : RE), 2) + " = <b>" + f(Av, 2) + "</b> · v_out = <b>" + f(Math.min(vc, lim), 3) + " V</b> puncak" + (clip ? ' · <span class="tag no">terpotong: ayunan maksimum ≈ ' + f(lim, 2) + " V</span>" : "");
+      $$(el, "[data-c]").forEach(function (x) { x.classList.toggle("on", (x.dataset.c === "1") === c2); });
+    }
+    $$(el, "[data-c]").forEach(function (x) { x.onclick = function () { c2 = x.dataset.c === "1"; draw(); }; });
+    el.querySelector("[data-a=p]").onclick = function () { play = !play; this.textContent = play ? "❚❚" : "▶"; };
+    ins.forEach(function (i) { i.addEventListener("input", draw); });
+    draw(); loop(el, function (dt) { if (play) { t += dt * 2; draw(); } });
+  };
   function mount(root) { $$(root, "[data-anim]").forEach(function (el) { var fn = A[el.dataset.anim]; if (fn && !el.dataset.on) { el.dataset.on = 1; el.classList.add("anim"); try { fn(el); } catch (e) { el.textContent = "(animasi gagal dimuat: " + e.message + ")"; } } }); }
   return { gambar: gambar, mount: mount, parseSpec: parseSpec, fR: fR };
 })();
