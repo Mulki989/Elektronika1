@@ -2265,6 +2265,412 @@ var Visual = (function () {
     draw();
     loop(el, function (dt) { if (!main) return; sisa -= dt; if (sisa <= 0) { main = false; var naik = skor > best; if (naik) { best = skor; try { localStorage.setItem("ed_kilat_best", String(best)); } catch (e) { } } umpan = "🏁 Selesai! Skor " + skor + (naik ? " · 🏆 REKOR BARU!" : "") + (skor >= 25 ? " · Master gerbang!" : skor >= 15 ? " · Hebat!" : " · Ayo coba lagi!"); } draw(); });
   };
+  /* =================== ANIMASI MATERI 13: ANALOG–DIGITAL & SISTEM BILANGAN =================== */
+  function hr13(a, b, c) { var h = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453; return h - Math.floor(h); }
+  function gs13(a, b, c) { var u = Math.max(1e-9, hr13(a, b, c)), v = hr13(a + 0.37, b + 1.7, c + 17.3); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function erfc13(x) { var z = Math.abs(x), t = 1 / (1 + 0.5 * z), r = t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 + t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 + t * (-0.82215223 + t * 0.17087277))))))))); return x >= 0 ? r : 2 - r; }
+  function Q13(x) { return 0.5 * erfc13(x / Math.SQRT2); }
+  var SIG13 = {
+    sinus: { nama: "Sinus", f: function (t) { return 0.9 * Math.sin(2 * Math.PI * t); } },
+    suara: { nama: "Suara", f: function (t) { return 0.55 * Math.sin(2 * Math.PI * t) + 0.28 * Math.sin(2 * Math.PI * 3.1 * t + 1) + 0.14 * Math.sin(2 * Math.PI * 7.3 * t); } },
+    suhu: { nama: "Suhu (lambat)", f: function (t) { return 0.75 * Math.sin(Math.PI * 0.5 * t) + 0.12 * Math.sin(2 * Math.PI * 1.3 * t); } }
+  };
+  function bin13(v, n) { var s = ""; for (var i = n - 1; i >= 0; i--) s += (v >> i) & 1; return s; }
+  function dB13(x) { return x > 1e9 ? "> 90" : f(10 * Math.log10(x), 1); }
+
+  // A.anadig — analog vs digital dalam satu layar
+  A.anadig = function (el) {
+    var sig = "sinus", sd = 0.1, k = 3, nb = 4, N = 32, ph = 0, play = true, acc = 0;
+    el.innerHTML = '<div class="ctrl">' + Object.keys(SIG13).map(function (s) { return '<button class="btn sm ghost" data-s="' + s + '">' + SIG13[s].nama + "</button>"; }).join("") + '<button class="btn sm ghost" data-a="p">❚❚ jeda</button></div>' +
+      '<svg class="diag wide" viewBox="0 0 700 330"><g class="c"></g></svg>' +
+      '<div class="ctrl">' + slider("Derau saluran σ", 0, 0.4, 0.01, sd, "") + slider("Penguat ulang / salinan k", 1, 10, 1, k, "") + slider("Bit ADC n", 1, 8, 1, nb, "bit") + slider("Sampel per jendela", 8, 64, 4, N, "") + "</div>" +
+      '<div class="ad-r" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div class="readout ra" style="text-align:left"></div><div class="readout rd" style="text-align:left"></div></div>';
+    var ins = $$(el, ".sl input");
+    function plot(fn, x0, yc, sc, c, w) { var p = []; for (var i = 0; i <= 300; i++) { var v = fn(i); p.push((x0 + i * 320 / 300).toFixed(1) + "," + (yc - Math.max(-1.4, Math.min(1.4, v)) * sc).toFixed(1)); } return poly(p.join(" "), c, w || 1.8); }
+    function draw() {
+      var F = SIG13[sig].f, s = "", L = 1 << nb, D = 2 / L, sc = 26;
+      var tA = function (i) { return ph + i / 150; }, gi = function (i) { return Math.round(ph * 150) + i; };
+      // ---------- ANALOG ----------
+      var ana = function (i) { var x = F(tA(i)), z = 0; for (var h = 0; h < k; h++) z += gs13(gi(i), h, 3); return x + sd * z; };
+      s += txt(175, 18, "ANALOG", { size: 15, b: 1, c: COP }) + txt(525, 18, "DIGITAL", { size: 15, b: 1, c: BLU }) + line(350, 8, 350, 322, "#d6cfbd", 1.5);
+      [62, 160, 262].forEach(function (y) { s += line(15, y, 335, y, "#e5e0d2", 1) + line(365, y, 685, y, "#e5e0d2", 1); });
+      s += txt(15, 34, "1. Sinyal asli (kontinu)", { size: 10, a: "start", c: MUT, b: 1 }) + plot(function (i) { return F(tA(i)); }, 15, 62, sc, COP, 2.2);
+      s += txt(15, 128, "2. Setelah " + k + " penguat ulang (derau menumpuk)", { size: 10, a: "start", c: MUT, b: 1 }) + plot(ana, 15, 160, sc, COP, 1.4);
+      s += txt(15, 228, "3. Hasil (oranye) vs asli (garis putus)", { size: 10, a: "start", c: MUT, b: 1 }) + plot(ana, 15, 262, sc, COP, 1.4) + plot(function (i) { return F(tA(i)); }, 15, 262, sc, INK, 1).replace("<polyline", '<polyline stroke-dasharray="4 3"');
+      // ---------- DIGITAL ----------
+      var g0 = Math.floor(ph * N / 2), samp = {};
+      function sampel(j) { // j indeks global sampel
+        if (samp[j]) return samp[j];
+        var x = F(j * 2 / N), q = Math.max(0, Math.min(L - 1, Math.floor((x + 1) / D))), bits = [], rx = [], err = 0, out = 0;
+        for (var b = nb - 1; b >= 0; b--) {
+          var bit = (q >> b) & 1, cur = bit, last = 0;
+          for (var h = 0; h < k; h++) { last = cur + sd * gs13(j, b, h + 11); cur = last > 0.5 ? 1 : 0; }
+          bits.push(cur); rx.push({ b: bit, r: last, d: cur }); if (cur !== bit) err++; out = out * 2 + cur;
+        }
+        return (samp[j] = { x: x, q: q, out: out, rx: rx, err: err });
+      }
+      var jOf = function (i) { return Math.floor(tA(i) * N / 2); };
+      s += txt(365, 34, "1. Disampel " + N + " titik, dikuantisasi " + nb + " bit (" + L + " level)", { size: 10, a: "start", c: MUT, b: 1 });
+      s += plot(function (i) { return F(tA(i)); }, 365, 62, sc, "#c9c2b0", 1.2) + plot(function (i) { var q = sampel(jOf(i)).q; return -1 + (q + 0.5) * D; }, 365, 62, sc, BLU, 2);
+      // baris bit (24 bit pertama)
+      var nbit = Math.min(24, Math.max(nb, Math.floor(24 / nb) * nb)), bw = 320 / nbit, ns = nbit / nb, errV = 0, totV = 0;
+      s += txt(365, 128, "2. Bit di saluran (" + nbit + " bit), ambang 0,5", { size: 10, a: "start", c: MUT, b: 1 });
+      var yb = 160, pts = [];
+      for (var m = 0; m < ns; m++) {
+        var S = sampel(g0 + m);
+        S.rx.forEach(function (o, bi) {
+          var X = 365 + (m * nb + bi) * bw, ry = function (r) { return yb + 16 - Math.max(-0.5, Math.min(1.5, r)) * 32; };
+          for (var u = 0; u < 4; u++) pts.push((X + u * bw / 3).toFixed(1) + "," + ry(o.r + (u === 1 ? 0 : sd * 0.6 * gs13(g0 + m, bi * 7 + u, 41))).toFixed(1));
+          var er = o.d !== o.b; totV++; if (er) errV++;
+          s += txt(X + bw / 2, yb + 33, String(o.d), { size: 9, b: 1, c: er ? RED : HI });
+          if (er) s += '<rect x="' + X + '" y="' + (yb - 22) + '" width="' + bw + '" height="44" fill="' + RED + '" opacity=".12"/>';
+        });
+        if (m) s += line(365 + m * nb * bw, yb - 22, 365 + m * nb * bw, yb + 22, "#cfc6b1", 1);
+      }
+      s += poly(pts.join(" "), BLU, 1.4) + '<line x1="365" y1="' + yb + '" x2="685" y2="' + yb + '" stroke="' + COP + '" stroke-dasharray="4 3" stroke-width="1"/>' + txt(687, yb + 3, "0,5", { size: 8, a: "start", c: COP });
+      s += txt(365, 228, "3. Hasil rekonstruksi (biru) vs asli (garis putus)", { size: 10, a: "start", c: MUT, b: 1 });
+      s += plot(function (i) { return -1 + (sampel(jOf(i)).out + 0.5) * D; }, 365, 262, sc, BLU, 1.8) + plot(function (i) { return F(tA(i)); }, 365, 262, sc, INK, 1).replace("<polyline", '<polyline stroke-dasharray="4 3"');
+      el.querySelector(".c").innerHTML = s;
+      // ---------- angka (teori) ----------
+      var Ps = 0; for (var i = 0; i < 400; i++) { var v = F(i / 100); Ps += v * v; } Ps /= 400;
+      var snrA = Ps / (sd * sd * k + 1e-12), pe1 = sd > 0 ? Q13(0.5 / sd) : 0, pe = 1 - Math.pow(1 - pe1, k);
+      var eq = D * D / 12, eb = pe * D * D * (Math.pow(4, nb) - 1) / 3, snrD = Ps / (eq + eb);
+      el.querySelector(".ra").innerHTML = "<b style='color:" + COP + "'>ANALOG</b><br>derau total = σ√k = " + f(sd, 2) + "×√" + k + " = <b>" + f(sd * Math.sqrt(k), 3) + "</b><br>SNR = P<sub>s</sub>/(kσ²) = <b>" + dB13(snrA) + " dB</b><br>" + (snrA < 10 ? '<span class="tag no">derau mengganggu, tak bisa dipisahkan</span>' : snrA < 100 ? '<span class="tag mid">berdesis</span>' : '<span class="tag ok">jernih</span>');
+      el.querySelector(".rd").innerHTML = "<b style='color:" + BLU + "'>DIGITAL</b><br>Δ = 2/2<sup>" + nb + "</sup> = " + f(D, 4) + " · peluang bit salah/tahap = Q(0,5/σ) = " + (pe1 < 1e-9 ? "≈ 0" : pe1 < 1e-3 ? pe1.toExponential(1).replace(".", ",") : f(pe1, 3)) + "<br>bit salah di layar: <b>" + errV + "/" + totV + "</b> · SNR ≈ <b>" + dB13(snrD) + " dB</b><br>" + (pe1 > 0.01 ? '<span class="tag no">derau melewati ambang: bit salah (efek tebing)</span>' : nb <= 2 ? '<span class="tag mid">regenerasi sempurna, tapi kuantisasi kasar</span>' : '<span class="tag ok">regenerasi: derau dibuang tiap tahap</span>');
+    }
+    ins.forEach(function (inp, i) { inp.oninput = function () { var v = +inp.value; inp.parentNode.querySelector(".val").textContent = i === 0 ? f(v, 2) : v; if (i === 0) sd = v; else if (i === 1) k = v; else if (i === 2) nb = v; else N = v; draw(); }; });
+    el.addEventListener("click", function (e) { var b = e.target.closest("[data-s]"); if (b) { sig = b.dataset.s; mark(); draw(); } var a = e.target.closest("[data-a=p]"); if (a) { play = !play; a.textContent = play ? "❚❚ jeda" : "▶ jalan"; } });
+    function mark() { $$(el, "[data-s]").forEach(function (b) { b.classList.toggle("on", b.dataset.s === sig); }); }
+    mark(); draw();
+    loop(el, function (dt) { if (!play) return; ph += dt * 0.35; acc += dt; if (acc > 0.08) { acc = 0; draw(); } });
+  };
+
+  // A.cliff — TV analog vs TV digital (efek tebing)
+  A.cliff = function (el) {
+    var n = 20;
+    el.innerHTML = '<svg class="diag wide" viewBox="0 0 700 300"><g class="c"></g></svg><div class="ctrl">' + slider("Gangguan / jarak dari pemancar", 0, 100, 1, n, "%") + '</div><div class="readout cr"></div>';
+    function scene(x, y) {
+      return '<rect x="' + x + '" y="' + y + '" width="220" height="130" fill="#7dd3fc"/><circle cx="' + (x + 170) + '" cy="' + (y + 32) + '" r="16" fill="#fde047"/><polygon points="' + x + "," + (y + 130) + " " + (x + 60) + "," + (y + 60) + " " + (x + 110) + "," + (y + 110) + " " + (x + 150) + "," + (y + 70) + " " + (x + 220) + "," + (y + 130) + '" fill="#15803d"/><rect x="' + (x + 30) + '" y="' + (y + 95) + '" width="36" height="28" fill="#f8fafc"/><polygon points="' + (x + 26) + "," + (y + 96) + " " + (x + 48) + "," + (y + 80) + " " + (x + 70) + "," + (y + 96) + '" fill="' + COP + '"/>';
+    }
+    function tv(x, y, judul) { return '<rect x="' + (x - 10) + '" y="' + (y - 10) + '" width="240" height="150" rx="10" fill="#1f2a24"/>' + txt(x + 110, y - 18, judul, { size: 12, b: 1 }) + '<rect x="' + (x + 90) + '" y="' + (y + 140) + '" width="40" height="10" fill="#1f2a24"/>'; }
+    function draw() {
+      var s = "", x1 = 40, x2 = 400, y = 40, seed = Math.floor(performance.now() / 120);
+      s += tv(x1, y, "TV analog") + scene(x1, y) + tv(x2, y, "TV digital") ;
+      // analog: kontras turun + semut
+      s += '<rect x="' + x1 + '" y="' + y + '" width="220" height="130" fill="#9ca3af" opacity="' + (n / 115).toFixed(2) + '"/>';
+      var dots = Math.round(n * n * 0.09);
+      for (var i = 0; i < dots; i++) { var px = x1 + hr13(i, seed, 1) * 218, py = y + hr13(i, seed, 2) * 128, g = hr13(i, seed, 3) > 0.5; s += '<rect x="' + px.toFixed(0) + '" y="' + py.toFixed(0) + '" width="2.4" height="2" fill="' + (g ? "#fff" : "#111") + '"/>'; }
+      // digital
+      if (n < 55) s += scene(x2, y);
+      else if (n < 70) { s += scene(x2, y); var nb = Math.round((n - 54) * 3); for (var j = 0; j < nb; j++) { var bx = x2 + Math.floor(hr13(j, 9, 1) * 11) * 20, by = y + Math.floor(hr13(j, 9, 2) * 6.5) * 20; s += '<rect x="' + bx + '" y="' + by + '" width="20" height="' + Math.min(20, y + 130 - by) + '" fill="' + ["#7dd3fc", "#15803d", "#a3a3a3", "#f8fafc", "#0f3d2e"][Math.floor(hr13(j, 9, 3) * 5)] + '"/>'; } s += txt(x2 + 110, y + 124, "gambar patah-patah / beku", { size: 10, b: 1, c: "#fff" }); }
+      else s += '<rect x="' + x2 + '" y="' + y + '" width="220" height="130" fill="#111"/>' + txt(x2 + 110, y + 70, "TIDAK ADA SINYAL", { size: 13, b: 1, c: "#fff" });
+      // grafik kualitas
+      var gx = 40, gy = 210, gw = 580, gh = 70, qa = function (v) { return Math.max(0, 100 - v * 1.0); }, qd = function (v) { return v < 55 ? 100 : v < 70 ? 100 - (v - 55) * 6.6 : 0; };
+      s += line(gx, gy + gh, gx + gw, gy + gh, INK, 1.4) + line(gx, gy, gx, gy + gh, INK, 1.4) + txt(gx - 4, gy + 8, "100", { size: 8, a: "end", c: MUT }) + txt(gx + gw, gy + gh + 13, "gangguan →", { size: 9, a: "end", c: MUT }) + txt(gx + 4, gy - 4, "kualitas gambar", { size: 9, a: "start", c: MUT });
+      var pa = [], pd = []; for (var v = 0; v <= 100; v += 2) { pa.push((gx + v * gw / 100) + "," + (gy + gh - qa(v) * gh / 100)); pd.push((gx + v * gw / 100) + "," + (gy + gh - qd(v) * gh / 100)); }
+      s += poly(pa.join(" "), COP, 2.4) + poly(pd.join(" "), BLU, 2.4) + txt(gx + gw + 6, gy + gh - qa(100) * gh / 100, "analog", { size: 9, a: "start", c: COP, b: 1 }) + txt(gx + 270, gy + 30, "digital: “tebing”", { size: 9, a: "start", c: BLU, b: 1 });
+      s += line(gx + n * gw / 100, gy - 2, gx + n * gw / 100, gy + gh, RED, 1.5) + '<circle cx="' + (gx + n * gw / 100) + '" cy="' + (gy + gh - qa(n) * gh / 100) + '" r="4" fill="' + COP + '"/><circle cx="' + (gx + n * gw / 100) + '" cy="' + (gy + gh - qd(n) * gh / 100) + '" r="4" fill="' + BLU + '"/>';
+      el.querySelector(".c").innerHTML = s;
+      el.querySelector(".cr").innerHTML = "Gangguan " + n + "% → analog " + Math.round(qa(n)) + "%, digital " + Math.round(qd(n)) + "% · " + (n < 55 ? "Digital masih <b>sempurna</b> karena derau di bawah ambang; analog sudah <b>berkurang sedikit demi sedikit</b>." : n < 70 ? "Digital mulai <b>runtuh mendadak</b> (bit salah melebihi kemampuan koreksi): efek tebing." : "Digital <b>hilang total</b>; analog masih terlihat walau buram. Inilah kelemahan digital: kualitas jatuh mendadak.");
+    }
+    var inp = el.querySelector("input"); inp.oninput = function () { n = +inp.value; inp.parentNode.querySelector(".val").textContent = n; draw(); };
+    var acc = 0; draw(); loop(el, function (dt) { acc += dt; if (acc > 0.15) { acc = 0; draw(); } });
+  };
+
+  // A.biner — pengubah biner/desimal/heksa/oktal
+  A.biner = function (el) {
+    var nb = 8, v = 22, mode = "bit";
+    el.innerHTML = '<div class="ctrl"><button class="btn sm ghost" data-m="bit">Biner → desimal</button><button class="btn sm ghost" data-m="bagi">Desimal → biner (bagi 2)</button><button class="btn sm ghost" data-m="hex">Heksa & oktal</button></div><div class="bn-bits" style="display:flex;justify-content:center;gap:4px;flex-wrap:wrap;margin:8px 0"></div><div class="ctrl">' + slider("Nilai desimal", 0, 255, 1, v, "") + '</div><div class="bn-x" style="overflow-x:auto"></div><div class="readout br"></div>';
+    function draw() {
+      var h = "";
+      for (var i = nb - 1; i >= 0; i--) { var b = (v >> i) & 1; h += '<button class="btn sm ' + (b ? "" : "ghost") + '" data-b="' + i + '" style="flex-direction:column;min-width:52px;padding:4px 6px;gap:0' + (b ? ";background:#16a34a" : "") + '"><span style="font-size:10px;opacity:.8">2<sup>' + i + "</sup>=" + (1 << i) + '</span><span style="font-size:22px;font-family:var(--f-mono)">' + b + '</span><span style="font-size:9px;opacity:.75">' + (i === nb - 1 ? "MSB" : i === 0 ? "LSB" : "&nbsp;") + "</span></button>"; }
+      el.querySelector(".bn-bits").innerHTML = h;
+      var x = "";
+      if (mode === "bit") {
+        var parts = [], sum = [];
+        for (var j = nb - 1; j >= 0; j--) { var bb = (v >> j) & 1; parts.push(bb + "×" + (1 << j)); if (bb) sum.push(1 << j); }
+        x = '<ol class="langkah small"><li>Tulis bobot tiap bit: dari kanan 1, 2, 4, 8, … (2⁰, 2¹, 2², …).</li><li>Kalikan bit dengan bobotnya: ' + parts.join(" + ") + '.</li><li>Jumlahkan bobot yang bitnya 1: ' + (sum.length ? sum.join(" + ") : "0") + " = <b>" + v + "</b>.</li></ol>";
+      } else if (mode === "bagi") {
+        var rows = "", n = v, st = [];
+        if (n === 0) rows = "<tr><td>0</td><td>0</td><td>0</td></tr>";
+        while (n > 0) { st.push(n % 2); rows += "<tr><td>" + n + " ÷ 2</td><td>" + Math.floor(n / 2) + "</td><td><b>" + (n % 2) + "</b></td></tr>"; n = Math.floor(n / 2); }
+        x = '<table class="tabel small" style="width:auto;margin:4px auto"><tr><th>Pembagian</th><th>Hasil</th><th>Sisa</th></tr>' + rows + '</table><p class="small center">Baca sisa dari <b>bawah ke atas</b>: ' + (st.length ? st.slice().reverse().join("") : "0") + "₂ = " + v + "₁₀</p>";
+      } else {
+        var hi = v >> 4, lo = v & 15, HX = "0123456789ABCDEF", oc = v.toString(8);
+        x = '<ol class="langkah small"><li>Heksadesimal (basis 16): kelompokkan <b>4 bit</b> dari kanan: <b>' + bin13(hi, 4) + "</b> | <b>" + bin13(lo, 4) + "</b>.</li><li>" + bin13(hi, 4) + " = " + hi + " → " + HX[hi] + "; " + bin13(lo, 4) + " = " + lo + " → " + HX[lo] + " (10–15 ditulis A–F).</li><li>Hasil: <b>" + HX[hi] + HX[lo] + "₁₆</b> = " + hi + "×16 + " + lo + " = " + v + '.</li><li>Oktal (basis 8): kelompokkan <b>3 bit</b>: ' + bin13(v, 9).match(/.../g).join(" | ") + " → <b>" + oc + "₈</b>.</li></ol>";
+      }
+      el.querySelector(".bn-x").innerHTML = x;
+      el.querySelector(".br").innerHTML = "<b>" + bin13(v, nb) + "₂</b> = <b>" + v + "₁₀</b> = <b>" + v.toString(16).toUpperCase() + "₁₆</b> = <b>" + v.toString(8) + "₈</b> · klik bit untuk membalik";
+      var inp = el.querySelector("input"); inp.value = v; inp.parentNode.querySelector(".val").textContent = v;
+      $$(el, "[data-m]").forEach(function (b) { b.classList.toggle("on", b.dataset.m === mode); });
+    }
+    el.addEventListener("click", function (e) { var b = e.target.closest("[data-b]"); if (b) { v ^= 1 << +b.dataset.b; draw(); } var m = e.target.closest("[data-m]"); if (m) { mode = m.dataset.m; draw(); } });
+    el.querySelector("input").oninput = function () { v = +this.value; draw(); };
+    if (el.dataset.mode) mode = el.dataset.mode; if (el.dataset.v) v = +el.dataset.v;
+    draw();
+  };
+
+  // A.sampling — Nyquist & aliasing
+  A.sampling = function (el) {
+    var fq = 3, fs = 20;
+    el.innerHTML = '<svg class="diag" viewBox="0 0 340 170"><g class="c"></g></svg><div class="ctrl">' + slider("Frekuensi sinyal f", 1, 30, 1, fq, "Hz") + slider("Laju sampel f_s", 4, 80, 1, fs, "Hz") + '</div><div class="readout sr"></div>';
+    function draw() {
+      var s = "", x0 = 20, w = 300, yc = 80, a = 50, k = Math.round(fq / fs), fa = fq - k * fs, p = [], r = [];
+      s += line(x0, yc, x0 + w, yc, "#ddd", 1) + txt(x0 + w, 160, "waktu 1 detik →", { size: 9, a: "end", c: MUT });
+      for (var i = 0; i <= 600; i++) { var t = i / 600; p.push((x0 + t * w).toFixed(1) + "," + (yc - a * Math.sin(2 * Math.PI * fq * t)).toFixed(1)); r.push((x0 + t * w).toFixed(1) + "," + (yc - a * Math.sin(2 * Math.PI * fa * t)).toFixed(1)); }
+      s += poly(p.join(" "), "#c9c2b0", 1.4) + poly(r.join(" "), fs >= 2 * fq ? HI : RED, 2);
+      for (var n = 0; n <= fs; n++) { var tt = n / fs, yy = yc - a * Math.sin(2 * Math.PI * fq * tt); s += line(x0 + tt * w, yc, x0 + tt * w, yy, BLU, 1) + '<circle cx="' + (x0 + tt * w).toFixed(1) + '" cy="' + yy.toFixed(1) + '" r="3" fill="' + BLU + '"/>'; }
+      s += txt(x0, 16, "abu = asli · biru = sampel · " + (fs >= 2 * fq ? "hijau" : "merah") + " = hasil", { size: 9, a: "start", c: MUT });
+      el.querySelector(".c").innerHTML = s;
+      el.querySelector(".sr").innerHTML = "Syarat Nyquist: f<sub>s</sub> ≥ 2f = 2×" + fq + " = " + 2 * fq + " Hz · f<sub>s</sub> = " + fs + " Hz → " + (fs >= 2 * fq ? '<span class="tag ok">terpenuhi</span> sinyal ' + fq + " Hz terekam benar" : '<span class="tag no">tidak terpenuhi</span> muncul <b>alias</b> |f − ' + k + "f<sub>s</sub>| = |" + fq + " − " + k * fs + "| = <b>" + Math.abs(fa) + " Hz</b>");
+    }
+    $$(el, "input").forEach(function (inp, i) { inp.oninput = function () { inp.parentNode.querySelector(".val").textContent = inp.value; if (i) fs = +inp.value; else fq = +inp.value; draw(); }; });
+    draw();
+  };
+
+  // A.adc — kuantisasi dan kode ADC
+  A.adc = function (el) {
+    var vr = 5, nb = 3, vin = 3.2;
+    el.innerHTML = '<div class="ctrl"><button class="btn sm ghost" data-r="5">V<sub>ref</sub> = 5 V</button><button class="btn sm ghost" data-r="3.3">V<sub>ref</sub> = 3,3 V</button></div><svg class="diag" viewBox="0 0 340 200"><g class="c"></g></svg><div class="ctrl">' + slider("Jumlah bit n", 1, 10, 1, nb, "bit") + slider("Tegangan masukan V_in", 0, 5, 0.01, vin, "V") + '</div><div class="adc-x"></div>';
+    function draw() {
+      var L = 1 << nb, D = vr / L, c = Math.min(L - 1, Math.floor(vin / D + 1e-9)), s = "", x0 = 40, y0 = 175, w = 280, h = 150;
+      s += line(x0, y0, x0 + w + 6, y0, INK, 1.4) + line(x0, y0, x0, y0 - h - 6, INK, 1.4) + txt(x0 + w, y0 + 16, "V_in (0 … " + f(vr, 1) + " V)", { size: 9, a: "end", c: MUT }) + txt(x0 - 4, y0 - h - 10, "kode", { size: 9, a: "start", c: MUT });
+      var p = []; for (var q = 0; q < L; q++) { var xa = x0 + q * D / vr * w, xb = x0 + (q + 1) * D / vr * w, yy = y0 - q / (L - 1 || 1) * h; p.push(xa.toFixed(1) + "," + yy.toFixed(1) + " " + xb.toFixed(1) + "," + yy.toFixed(1)); }
+      s += poly(p.join(" "), BLU, 2) + line(x0, y0, x0 + w, y0 - h, "#c9c2b0", 1);
+      if (L <= 16) for (var q2 = 0; q2 < L; q2++) s += txt(x0 - 4, y0 - q2 / (L - 1 || 1) * h + 3, bin13(q2, nb), { size: L > 8 ? 6.5 : 8, a: "end", c: MUT });
+      var vx = x0 + Math.min(vin, vr) / vr * w, vy = y0 - c / (L - 1 || 1) * h;
+      s += line(vx, y0, vx, vy, RED, 1.4) + '<circle cx="' + vx + '" cy="' + vy + '" r="4.5" fill="' + RED + '"/>' + txt(vx + 6, vy - 6, "kode " + c, { size: 10, b: 1, c: RED, a: "start" });
+      el.querySelector(".c").innerHTML = s;
+      var vo = c * D;
+      el.querySelector(".adc-x").innerHTML = '<ol class="langkah small"><li>Jumlah level = 2<sup>n</sup> = 2<sup>' + nb + "</sup> = <b>" + L + "</b>.</li><li>Resolusi Δ = V<sub>ref</sub>/2<sup>n</sup> = " + f(vr, 2) + "/" + L + " = <b>" + f(D * 1000, 2) + " mV</b> per langkah.</li><li>Kode = ⌊V<sub>in</sub>/Δ⌋ = ⌊" + f(vin, 2) + "/" + f(D, 5) + "⌋ = ⌊" + f(vin / D, 2) + "⌋ = <b>" + c + "</b>" + (vin >= vr ? " (dibatasi maksimum " + (L - 1) + ")" : "") + " = <b>" + bin13(c, nb) + "₂</b> = " + c.toString(16).toUpperCase() + "₁₆.</li><li>Bila dikembalikan oleh DAC: V = kode × Δ = " + c + " × " + f(D * 1000, 2) + " mV = <b>" + f(vo, 3) + " V</b>; galat = " + f((vin - vo) * 1000, 1) + " mV (≤ Δ = " + f(D * 1000, 1) + " mV).</li></ol>";
+      $$(el, "[data-r]").forEach(function (b) { b.classList.toggle("on", +b.dataset.r === vr); });
+    }
+    var ins = $$(el, "input");
+    ins[0].oninput = function () { nb = +this.value; this.parentNode.querySelector(".val").textContent = nb; draw(); };
+    ins[1].oninput = function () { vin = +this.value; this.parentNode.querySelector(".val").textContent = f(vin, 2); draw(); };
+    el.addEventListener("click", function (e) { var b = e.target.closest("[data-r]"); if (b) { vr = +b.dataset.r; ins[1].max = vr; if (vin > vr) { vin = vr; ins[1].value = vr; ins[1].parentNode.querySelector(".val").textContent = f(vr, 2); } draw(); } });
+    draw();
+  };
+
+  // A.rantai — aplikasi: sensor → ADC → mikrokontroler → DAC/tampilan
+  var RANTAI = {
+    termo: { nama: "Termometer digital", sl: ["Suhu", 0, 100, 1, 37, "°C"], blok: ["Sensor LM35", "Penguat op-amp ×5", "ADC 10 bit (5 V)", "Mikrokontroler", "Layar 7-segmen"],
+      val: function (T) { var v1 = T * 0.01, v2 = v1 * 5, c = Math.min(1023, Math.floor(v2 / (5 / 1024))), tt = c * 5 / 1024 / 0.05; return ["10 mV/°C → " + f(v1 * 1000, 0) + " mV", "→ " + f(v2, 3) + " V", "kode " + c + " = " + bin13(c, 10), "T = kode×4,883 mV/50 mV", f(tt, 1) + " °C"]; },
+      ket: function (T) { var v2 = T * 0.05, c = Math.min(1023, Math.floor(v2 / (5 / 1024))); return "Langkah: V<sub>sensor</sub> = " + T + " × 10 mV = " + f(T * 10, 0) + " mV → ×5 = " + f(v2, 3) + " V → kode = ⌊" + f(v2, 3) + "/4,883 mV⌋ = " + c + " → T = " + c + " × 4,883/50 = " + f(c * 5 / 1024 / 0.05, 2) + " °C. Resolusi tampilan ≈ 0,1 °C."; } },
+    audio: { nama: "Pemutar musik", sl: ["Volume", 0, 100, 1, 60, "%"], blok: ["File MP3 (memori)", "Mikrokontroler (decoder)", "DAC 16 bit", "Penguat daya", "Speaker"],
+      val: function (vol, t) { var x = Math.sin(2 * Math.PI * 0.7 * t), c = Math.round((x * 0.5 + 0.5) * 65535), v = c / 65535 * 3.3, o = (v - 1.65) * vol / 100 * 6; return ["data biner", "44.100 sampel/s", "kode " + c, f(v, 2) + " V → ×" + f(vol * 0.06, 1), f(o, 2) + " V ke speaker"]; },
+      ket: function () { return "Lagu disimpan sebagai angka biner (44.100 sampel per detik × 16 bit × 2 kanal = 1.411.200 bit/s sebelum dikompresi). DAC mengubah tiap kode kembali menjadi tegangan, lalu penguat op-amp/daya (analog!) menggerakkan speaker."; } },
+    cuaca: { nama: "Stasiun informasi cuaca", sl: ["Gas CO di udara", 0, 50, 1, 8, "ppm"], blok: ["Sensor gas & suhu", "Datalogger (ADC + MCU)", "Modem GSM", "Server / pusat data", "Papan informasi LED"],
+      val: function (p) { var st = p < 9 ? "BAIK" : p < 15 ? "SEDANG" : p < 30 ? "TIDAK SEHAT" : "BERBAHAYA"; return ["CO = " + p + " ppm", "kode ADC " + Math.round(p / 50 * 1023), "dikirim tiap 5 menit", "simpan & olah", "CO : " + st]; },
+      ket: function (p) { return "Sesuai contoh materi: stasiun di lapangan mengukur gas (CO, NO₂, SO₂, O₃) dan cuaca, datalogger mengubahnya menjadi data digital, modem GSM mengirim data, lalu papan LED di kota menampilkan status. Kategori CO " + p + " ppm: <b>" + (p < 9 ? "BAIK" : p < 15 ? "SEDANG" : p < 30 ? "TIDAK SEHAT" : "BERBAHAYA") + "</b>."; } }
+  };
+  A.rantai = function (el) {
+    var mode = el.dataset.mode || "termo", x = RANTAI[mode].sl[4], t = 0, acc = 0;
+    el.innerHTML = '<div class="ctrl">' + Object.keys(RANTAI).map(function (k) { return '<button class="btn sm ghost" data-m="' + k + '">' + RANTAI[k].nama + "</button>"; }).join("") + '</div><svg class="diag" viewBox="0 0 700 170"><g class="c"></g></svg><div class="ctrl rt-sl"></div><div class="readout rr" style="text-align:left"></div>';
+    function setup() { var S = RANTAI[mode].sl; x = S[4]; el.querySelector(".rt-sl").innerHTML = slider(S[0], S[1], S[2], S[3], x, S[5]); var inp = el.querySelector(".rt-sl input"); inp.oninput = function () { x = +inp.value; inp.parentNode.querySelector(".val").textContent = x; draw(); }; $$(el, "[data-m]").forEach(function (b) { b.classList.toggle("on", b.dataset.m === mode); }); }
+    function draw() {
+      var R = RANTAI[mode], V = R.val(x, t), s = "", bw = 112, gap = 30;
+      R.blok.forEach(function (b, i) {
+        var X = 12 + i * (bw + gap), dig = mode === "termo" ? i >= 2 : mode === "audio" ? i <= 2 : i >= 1;
+        s += '<rect x="' + X + '" y="40" width="' + bw + '" height="60" rx="10" fill="' + (dig ? "#dbeafe" : "#fde7d4") + '" stroke="' + (dig ? BLU : COP) + '" stroke-width="2"/>';
+        var w = b.split(" "), l1 = w.slice(0, Math.ceil(w.length / 2)).join(" "), l2 = w.slice(Math.ceil(w.length / 2)).join(" ");
+        s += txt(X + bw / 2, 66, l1, { size: 10.5, b: 1 }) + txt(X + bw / 2, 81, l2, { size: 10.5, b: 1 }) + txt(X + bw / 2, 32, dig ? "digital" : "analog", { size: 8.5, b: 1, c: dig ? BLU : COP });
+        s += txt(X + bw / 2, 122, V[i], { size: 9, c: INK });
+        if (i < R.blok.length - 1) { s += arrow(X + bw + 2, 70, X + bw + gap - 2, 70, MUT); var ph = (t * 1.2 + i * 0.2) % 1; s += '<circle cx="' + (X + bw + 2 + ph * (gap - 6)) + '" cy="70" r="3.5" fill="' + (dig ? BLU : COP) + '"/>'; }
+      });
+      s += '<rect x="12" y="150" width="14" height="10" fill="#fde7d4" stroke="' + COP + '"/>' + txt(30, 159, "bagian analog", { size: 9, a: "start" }) + '<rect x="130" y="150" width="14" height="10" fill="#dbeafe" stroke="' + BLU + '"/>' + txt(148, 159, "bagian digital", { size: 9, a: "start" }) + txt(690, 159, "Hampir semua produk = analog + digital", { size: 9, a: "end", c: MUT, b: 1 });
+      el.querySelector(".c").innerHTML = s;
+      el.querySelector(".rr").innerHTML = R.ket(x);
+    }
+    el.addEventListener("click", function (e) { var b = e.target.closest("[data-m]"); if (b) { mode = b.dataset.m; setup(); draw(); } });
+    setup(); draw(); loop(el, function (dt) { t += dt; acc += dt; if (acc > 0.1) { acc = 0; draw(); } });
+  };
+
+  // A.mcu — mikroprosesor vs mikrokomputer vs mikrokontroler
+  A.mcu = function (el) {
+    var mode = el.dataset.mode || "mp";
+    var INFO = { mp: ["Mikroprosesor", "Hanya CPU dalam satu chip (ALU, unit kendali, register, kendali bus). Memori dan I/O di luar chip. Contoh: Intel 4004, 8086, Core i5."], mk: ["Mikrokomputer", "Mikroprosesor + memori (ROM, RAM) + I/O + clock dipasang bersama di satu papan. Contoh: PC, laptop, Raspberry Pi."], mc: ["Mikrokontroler", "CPU, RAM, ROM/flash, port I/O, timer, port serial, ADC semuanya dalam SATU chip: komputer kecil untuk mengendalikan alat. Contoh: AT89S51 (MCS-51), ATmega328 (Arduino), PIC16F877, ESP32."] };
+    el.innerHTML = '<div class="ctrl">' + Object.keys(INFO).map(function (k) { return '<button class="btn sm ghost" data-m="' + k + '">' + INFO[k][0] + "</button>"; }).join("") + '</div><svg class="diag" viewBox="0 0 360 210"><g class="c"></g></svg><div class="readout mr"></div>';
+    function box(x, y, w, h, t, on, sub) { return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="6" fill="' + (on ? "#dbeafe" : "#f3f4f6") + '" stroke="' + (on ? BLU : "#b8b2a2") + '" stroke-width="1.8"/>' + txt(x + w / 2, y + h / 2 + (sub ? -1 : 4), t, { size: 10, b: 1, c: on ? INK : MUT }) + (sub ? txt(x + w / 2, y + h / 2 + 11, sub, { size: 7.5, c: MUT }) : ""); }
+    function draw() {
+      var s = "", mk = mode === "mk", mc = mode === "mc", all = mk || mc;
+      s += '<rect x="130" y="70" width="100" height="70" rx="8" fill="#dbeafe" stroke="' + BLU + '" stroke-width="2"/>' + txt(180, 84, "CPU", { size: 11, b: 1 });
+      s += box(138, 90, 40, 20, "ALU", true) + box(182, 90, 40, 20, "CU", true) + box(138, 114, 84, 20, "Register", true);
+      s += box(30, 40, 80, 34, "ROM/flash", all, "program") + box(30, 88, 80, 34, "RAM", all, "data") + box(250, 40, 80, 34, "Port I/O", all) + box(250, 88, 80, 34, "Timer", mc || mk) + box(30, 136, 80, 34, "Serial", mc || mk) + box(250, 136, 80, 34, "ADC", mc) + box(140, 160, 80, 26, "Clock", all);
+      [[110, 57, 130, 85], [110, 105, 130, 105], [250, 57, 230, 85], [250, 105, 230, 105], [110, 153, 130, 125], [250, 153, 230, 125], [180, 160, 180, 140]].forEach(function (a) { s += line(a[0], a[1], a[2], a[3], all ? BLU : "#cfc6b1", 1.6); });
+      if (mode === "mp") s += '<rect x="122" y="62" width="116" height="86" rx="10" fill="none" stroke="' + COP + '" stroke-width="2.6" stroke-dasharray="7 4"/>' + txt(180, 56, "1 chip", { size: 10, b: 1, c: COP });
+      else if (mk) s += '<rect x="20" y="28" width="320" height="166" rx="12" fill="none" stroke="' + COP + '" stroke-width="2.6" stroke-dasharray="7 4"/>' + txt(180, 22, "1 papan (beberapa chip)", { size: 10, b: 1, c: COP });
+      else s += '<rect x="20" y="28" width="320" height="166" rx="12" fill="#B0601C" opacity=".06"/><rect x="20" y="28" width="320" height="166" rx="12" fill="none" stroke="' + COP + '" stroke-width="3.2"/>' + txt(180, 22, "SEMUA dalam 1 chip", { size: 10, b: 1, c: COP });
+      s += txt(350, 205, mode === "mc" ? "+ sensor, motor, LED di pin I/O" : mode === "mk" ? "+ keyboard, layar, disk" : "butuh chip memori & I/O luar", { size: 8.5, a: "end", c: MUT });
+      el.querySelector(".c").innerHTML = s;
+      el.querySelector(".mr").innerHTML = "<b>" + INFO[mode][0] + "</b>: " + INFO[mode][1];
+      $$(el, "[data-m]").forEach(function (b) { b.classList.toggle("on", b.dataset.m === mode); });
+    }
+    el.addEventListener("click", function (e) { var b = e.target.closest("[data-m]"); if (b) { mode = b.dataset.m; draw(); } });
+    draw();
+  };
+
+  // Gambar statis M13
+  G.sinyal13 = function (p) {
+    var dig = p.mode === "digital", s = "", pts = [];
+    s += line(20, 100, 330, 100, INK, 1.4) + line(20, 20, 20, 105, INK, 1.4) + txt(330, 116, "t", { size: 11, c: MUT }) + txt(14, 18, "V", { size: 11, c: MUT });
+    if (!dig) { for (var i = 0; i <= 300; i++) pts.push((20 + i) + "," + (60 - 32 * Math.sin(i / 300 * 4 * Math.PI) * (0.7 + 0.3 * Math.sin(i / 37))).toFixed(1)); s += poly(pts.join(" "), COP, 2.6) + txt(175, 135, "berubah sedikit demi sedikit (kontinu)", { size: 10, c: MUT }); }
+    else { var b = [0, 1, 1, 0, 1, 0, 0, 1, 1, 1], w = 25; b.forEach(function (x, i) { var y = x ? 35 : 90; pts.push((20 + i * w) + "," + y + " " + (20 + (i + 1) * w) + "," + y); s += txt(35 + i * w, 30, String(x), { size: 10, b: 1, c: BLU }); }); s += poly(pts.join(" "), BLU, 2.6) + txt(336, 39, "tinggi (1)", { size: 8.5, a: "end", c: MUT }) + txt(336, 86, "rendah (0)", { size: 8.5, a: "end", c: MUT }) + txt(175, 135, "hanya dua keadaan, berubah secara diskrit", { size: 10, c: MUT }); }
+    return svg(340, 145, s);
+  };
+  G.nilaitempat = function (p) {
+    var d = String(p.d || 4521).split(""), bs = +p.b || 10, s = "", n = d.length, w = 300 / n;
+    d.forEach(function (c, i) {
+      var X = 25 + i * w, e = n - 1 - i, val = parseInt(c, bs), wt = Math.pow(bs, e);
+      s += '<rect x="' + X + '" y="18" width="' + (w - 6) + '" height="30" rx="6" fill="#fde7d4" stroke="' + COP + '"/>' + txt(X + w / 2 - 3, 38, bs + "^" + e, { size: 11, b: 1 }).replace(bs + "^" + e, bs + "<tspan baseline-shift='super' font-size='8'>" + e + "</tspan>");
+      s += '<rect x="' + X + '" y="56" width="' + (w - 6) + '" height="34" rx="6" fill="#fff" stroke="' + INK + '"/>' + txt(X + w / 2 - 3, 80, c, { size: 18, b: 1, c: BLU });
+      s += arrow(X + w / 2 - 3, 92, X + w / 2 - 3, 110, MUT) + txt(X + w / 2 - 3, 126, val + "×" + wt, { size: 10 }) + txt(X + w / 2 - 3, 142, String(val * wt), { size: 11, b: 1, c: COP });
+      if (i < n - 1) s += txt(X + w - 3, 134, "+", { size: 12, b: 1, c: MUT });
+    });
+    var tot = parseInt(d.join(""), bs);
+    if (bs === 2) s += txt(25, 12, "MSB", { size: 9, b: 1, a: "start", c: RED }) + txt(319, 12, "LSB", { size: 9, b: 1, a: "end", c: RED });
+    s += txt(175, 166, "= " + tot + (bs === 10 ? "" : "₁₀"), { size: 13, b: 1 });
+    return svg(345, 175, s);
+  };
+
+  /* -------- PERMAINAN M13 -------- */
+  // Game 1: Analog atau Digital?
+  var PILAH = [
+    ["🕰️", "Jam dinding berjarum", "A", "jarum bergerak mulus melewati semua posisi"], ["⌚", "Jam tangan angka LCD", "D", "angka berubah melompat per detik"],
+    ["🌡️", "Termometer air raksa", "A", "tinggi raksa naik turun kontinu"], ["🤒", "Termometer digital", "D", "suhu ditampilkan sebagai angka hasil ADC"],
+    ["💿", "Lagu di CD / MP3", "D", "lagu disimpan sebagai deretan bit"], ["📀", "Piringan hitam", "A", "alur piringan meniru gelombang suara"],
+    ["📼", "Kaset pita", "A", "kemagnetan pita sebanding sinyal suara"], ["🚗", "Speedometer jarum", "A", "jarum menunjuk nilai kontinu"],
+    ["🎤", "Keluaran mikrofon", "A", "tegangannya mengikuti tekanan udara suara"], ["💾", "Flashdisk", "D", "menyimpan data 0/1 dalam sel memori"],
+    ["📻", "Siaran radio FM", "A", "frekuensi pembawa dimodulasi sinyal suara"], ["📺", "TV digital DVB-T2", "D", "gambar dikirim sebagai data biner"],
+    ["🔳", "QR code", "D", "kotak hitam-putih = bit"], ["🗣️", "Suara manusia", "A", "getaran udara bersifat kontinu"],
+    ["🎚️", "Potensiometer volume", "A", "hambatan berubah halus"], ["🔘", "Tombol keyboard", "D", "ditekan (1) atau tidak (0)"],
+    ["📟", "Multimeter digital", "D", "menampilkan angka hasil ADC"], ["🧭", "Multimeter jarum (analog)", "A", "simpangan jarum sebanding arus"],
+    ["💬", "Pesan WhatsApp", "D", "teks dikodekan menjadi bit"], ["☀️", "Cahaya matahari", "A", "intensitas berubah kontinu"]
+  ];
+  A.game_pilah = function (el) {
+    var R = 10, ronde, skor, streak, urut, dijawab, msg;
+    function mulai() { urut = PILAH.map(function (x, i) { return i; }).sort(function () { return Math.random() - 0.5; }).slice(0, R); ronde = 0; skor = 0; streak = 0; dijawab = false; msg = "Pilih: benda/sinyal ini analog atau digital?"; }
+    el.innerHTML = gameHead("Analog atau Digital?", "pilah benda di sekitar kita") + '<div class="pl-card" style="text-align:center;padding:10px"></div><div class="ctrl"><button class="btn gm-big" data-j="A" style="background:#B0601C">〰️ Analog</button><button class="btn gm-big" data-j="D" style="background:#1d4ed8">▮▯▮ Digital</button></div><div class="readout gm-msg"></div><div class="ctrl"><button class="btn sm ghost" data-a="lanjut">Berikutnya ▶</button><button class="btn sm ghost" data-a="ulang">Main lagi ↺</button></div>';
+    function draw() {
+      var it = PILAH[urut[Math.min(ronde, R - 1)]];
+      el.querySelector(".pl-card").innerHTML = ronde >= R ? '<div style="font-size:54px">🏁</div><b>Skor ' + skor + "/" + R * 10 + "</b>" + (skor >= 90 ? " 🏆 Ahli sinyal!" : skor >= 60 ? " ⭐ Bagus!" : " Coba lagi!") : '<div style="font-size:64px;line-height:1.1">' + it[0] + '</div><div style="font-size:20px;font-weight:700">' + it[1] + '</div><div class="small muted">Soal ' + (ronde + 1) + "/" + R + " · skor " + skor + (streak > 1 ? " · 🔥 " + streak : "") + "</div>";
+      el.querySelector(".gm-msg").innerHTML = msg;
+      $$(el, "[data-j]").forEach(function (b) { b.disabled = dijawab || ronde >= R; });
+      el.querySelector("[data-a=lanjut]").disabled = !dijawab || ronde >= R;
+    }
+    el.addEventListener("click", function (e) {
+      var j = e.target.closest("[data-j]"); if (j && !dijawab && ronde < R) { var it = PILAH[urut[ronde]], ok = j.dataset.j === it[2]; dijawab = true; if (ok) { streak++; skor += 10; msg = "✅ Benar, <b>" + (it[2] === "A" ? "analog" : "digital") + "</b>: " + it[3] + "."; } else { streak = 0; msg = "❌ Itu <b>" + (it[2] === "A" ? "analog" : "digital") + "</b>: " + it[3] + "."; } draw(); return; }
+      var a = e.target.closest("[data-a]"); if (a) { if (a.dataset.a === "ulang") mulai(); else if (dijawab) { ronde++; dijawab = false; msg = ronde >= R ? "Selesai! Ingat: dunia nyata analog, pengolahan & penyimpanan modern digital." : "Pilih: analog atau digital?"; } draw(); }
+    });
+    mulai(); draw();
+  };
+
+  // Game 2: Kunci Biner (60 detik)
+  A.game_biner = function (el) {
+    var v = 0, tgt = 0, main = false, sisa = 60, skor = 0, best = 0, umpan = "", acc = 0;
+    try { best = +(localStorage.getItem("ed_biner_best") || 0); } catch (e) { }
+    function maxNow() { return skor < 3 ? 15 : skor < 7 ? 63 : 255; }
+    function baru() { var m = maxNow(), t; do { t = 1 + Math.floor(Math.random() * m); } while (t === tgt); tgt = t; v = 0; }
+    el.innerHTML = gameHead("Kunci Biner", "nyalakan bit sampai nilainya sama dengan angka target") + '<div class="readout gb-t" style="font-size:20px"></div><div class="gb-bits" style="display:flex;justify-content:center;gap:4px;flex-wrap:wrap;margin:8px 0"></div><div class="readout gm-msg"></div><div class="ctrl"><button class="btn sm" data-a="mulai">Mulai ▶</button></div>';
+    function draw() {
+      var h = ""; for (var i = 7; i >= 0; i--) { var b = (v >> i) & 1, aktif = (1 << i) <= maxNow(); h += '<button class="btn sm ' + (b ? "" : "ghost") + '" data-b="' + i + '" ' + (!main || !aktif ? "disabled" : "") + ' style="flex-direction:column;min-width:52px;padding:4px 6px;gap:0' + (b ? ";background:#16a34a" : "") + '"><span style="font-size:10px;opacity:.8">' + (1 << i) + '</span><span style="font-size:24px;font-family:var(--f-mono)">' + b + "</span></button>"; }
+      el.querySelector(".gb-bits").innerHTML = h;
+      el.querySelector(".gb-t").innerHTML = main ? "Target: <b style='font-size:30px;color:" + COP + "'>" + tgt + "</b> · nilai bitmu: <b>" + v + "</b>" : sisa <= 0 ? "⏰ Waktu habis! Skor <b>" + skor + "</b>" : "Tekan <b>Mulai</b>. Kamu punya 60 detik.";
+      el.querySelector(".gm-msg").innerHTML = "⏱ " + Math.max(0, Math.ceil(sisa)) + " s · Skor <b>" + skor + "</b> · rekor <b>" + best + "</b> · tingkat: " + (maxNow() === 15 ? "4 bit" : maxNow() === 63 ? "6 bit" : "8 bit") + (umpan ? "<br>" + umpan : "");
+      el.querySelector("[data-a=mulai]").textContent = main ? "Sedang main…" : "Mulai ▶";
+    }
+    el.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-b]"); if (b && main) { v ^= 1 << +b.dataset.b; if (v === tgt) { skor++; umpan = "✅ " + tgt + " = " + bin13(tgt, maxNow() === 15 ? 4 : maxNow() === 63 ? 6 : 8) + "₂"; baru(); } draw(); return; }
+      var a = e.target.closest("[data-a=mulai]"); if (a && !main) { main = true; sisa = 60; skor = 0; umpan = ""; tgt = 0; baru(); draw(); }
+    });
+    draw();
+    loop(el, function (dt) { if (!main) return; sisa -= dt; acc += dt; if (sisa <= 0) { main = false; if (skor > best) { best = skor; try { localStorage.setItem("ed_biner_best", best); } catch (e) { } umpan = "🏆 Rekor baru!"; } draw(); } else if (acc > 0.25) { acc = 0; draw(); } });
+  };
+
+  // Game 3: Tebak Kode ADC
+  A.game_adc = function (el) {
+    var R = 8, ronde, skor, soal, dijawab, msg;
+    function baru() {
+      var n = [3, 4, 8, 10][Math.floor(Math.random() * 4)], vr = Math.random() < 0.5 ? 5 : 3.3, L = 1 << n, D = vr / L, vin = Math.round(Math.random() * vr * 0.95 * 100) / 100, c = Math.min(L - 1, Math.floor(vin / D + 1e-9)), op = [c];
+      [c + 1, c - 1, Math.round(vin / vr * (L - 1)), c + 2, c - 2, Math.floor(c / 2)].forEach(function (x) { if (op.length < 4 && x >= 0 && x <= L - 1 && op.indexOf(x) < 0) op.push(x); });
+      while (op.length < 4) { var r = Math.floor(Math.random() * L); if (op.indexOf(r) < 0) op.push(r); }
+      op.sort(function (a, b) { return a - b; }); soal = { n: n, vr: vr, L: L, D: D, vin: vin, c: c, op: op }; dijawab = false; msg = "Hitung Δ = V<sub>ref</sub>/2<sup>n</sup>, lalu kode = ⌊V<sub>in</sub>/Δ⌋.";
+    }
+    function mulai() { ronde = 0; skor = 0; baru(); }
+    el.innerHTML = gameHead("Tebak Kode ADC", "kode digital berapa yang keluar dari ADC?") + '<div class="readout ga-q" style="font-size:16px"></div><div class="ctrl ga-op"></div><div class="readout gm-msg"></div><div class="ctrl"><button class="btn sm ghost" data-a="lanjut">Soal berikut ▶</button><button class="btn sm ghost" data-a="ulang">Main lagi ↺</button></div>';
+    function draw() {
+      var S = soal;
+      el.querySelector(".ga-q").innerHTML = ronde >= R ? "🏁 Selesai! Skor <b>" + skor + "/" + R * 10 + "</b>" + (skor >= 70 ? " 🏆" : skor >= 50 ? " ⭐" : "") : "Soal " + (ronde + 1) + "/" + R + " · skor " + skor + "<br>ADC <b>" + S.n + " bit</b>, V<sub>ref</sub> = <b>" + f(S.vr, 1) + " V</b>, V<sub>in</sub> = <b>" + f(S.vin, 2) + " V</b>";
+      el.querySelector(".ga-op").innerHTML = ronde >= R ? "" : S.op.map(function (x) { return '<button class="btn gm-big" data-o="' + x + '" ' + (dijawab ? "disabled" : "") + ' style="min-width:110px;font-size:18px' + (dijawab && x === S.c ? ";background:#16a34a" : "") + '">' + x + (S.n <= 4 ? '<small style="display:block;font-size:11px;opacity:.8">' + bin13(x, S.n) + "₂</small>" : "") + "</button>"; }).join("");
+      el.querySelector(".gm-msg").innerHTML = msg;
+      el.querySelector("[data-a=lanjut]").disabled = !dijawab || ronde >= R;
+    }
+    el.addEventListener("click", function (e) {
+      var o = e.target.closest("[data-o]"); if (o && !dijawab) { var S = soal, ok = +o.dataset.o === S.c; dijawab = true; if (ok) skor += 10; msg = (ok ? "✅ Tepat! " : "❌ Belum. ") + "Δ = " + f(S.vr, 1) + "/" + S.L + " = " + f(S.D * 1000, 3) + " mV → " + f(S.vin, 2) + "/" + f(S.D, 6) + " = " + f(S.vin / S.D, 2) + " → dibulatkan ke bawah = <b>" + S.c + "</b>" + (S.n <= 10 ? " = " + bin13(S.c, S.n) + "₂" : ""); draw(); return; }
+      var a = e.target.closest("[data-a]"); if (a) { if (a.dataset.a === "ulang") mulai(); else if (dijawab) { ronde++; if (ronde < R) baru(); else msg = "Ingat dua rumus: Δ = V<sub>ref</sub>/2<sup>n</sup> dan kode = ⌊V<sub>in</sub>/Δ⌋."; } draw(); }
+    });
+    mulai(); draw();
+  };
+
+  // Game 4: Kirim Sinyal (penguat ulang / repeater)
+  var LV_KIRIM = [
+    { L: 40, bud: 3, mode: "D", judul: "Kabel 40 km" },
+    { L: 75, bud: 6, mode: "D", judul: "Antar kota 75 km" },
+    { L: 90, bud: 7, mode: "D", judul: "Melewati laut & hutan", boleh: [10, 20, 25, 40, 45, 55, 70, 80] },
+    { L: 60, bud: 5, mode: "A", judul: "Tantangan analog 60 km", target: 10 }
+  ];
+  var SG13 = 0.08, AT13 = 25;
+  function hopsK(L, reps) { var p = [0].concat(reps.slice().sort(function (a, b) { return a - b; })).concat([L]), h = []; for (var i = 1; i < p.length; i++) h.push(p[i] - p[i - 1]); return h; }
+  function evalK(Lv, reps) {
+    var h = hopsK(Lv.L, reps), res = { h: h };
+    if (Lv.mode === "D") { res.mata = h.map(function (x) { return Math.exp(-x / AT13) / (2 * SG13); }); res.ber = h.reduce(function (s, x) { return s + Q13(Math.exp(-x / AT13) / (2 * SG13)); }, 0); res.ok = res.mata.every(function (m) { return m >= 3; }); }
+    else { var inv = h.reduce(function (s, x) { return s + SG13 * SG13 / Math.exp(-2 * x / AT13); }, 0); res.snr = 10 * Math.log10(1 / inv); res.ok = res.snr >= Lv.target; }
+    return res;
+  }
+  function spotsK(Lv) { if (Lv.boleh) return Lv.boleh; var o = []; for (var x = 5; x < Lv.L; x += 5) o.push(x); return o; }
+  function minK(Lv) { var sp = spotsK(Lv), best = 99; for (var m = 0; m < (1 << sp.length); m++) { var r = sp.filter(function (x, i) { return (m >> i) & 1; }); if (r.length < best && r.length <= Lv.bud && evalK(Lv, r).ok) best = r.length; } return best; }
+  A.game_kirim = function (el) {
+    var lv = 0, reps, hasil, anim = -1, bintang = [], mins = LV_KIRIM.map(minK), MSG = "HALO DUNIA";
+    function mulai() { reps = []; hasil = null; anim = -1; }
+    el.innerHTML = gameHead("Kirim Sinyal", "pasang penguat ulang di sepanjang kabel agar pesan sampai utuh") + '<div class="readout gm-lv"></div><svg class="diag wide" viewBox="0 0 700 200"><g class="c"></g></svg><div class="readout gm-msg"></div><div class="ctrl"><button class="btn sm" data-a="kirim">Kirim ▶</button><button class="btn sm ghost" data-a="ulang">Ulangi ↺</button><button class="btn sm" data-a="lanjut">Level berikut ▶</button></div>';
+    function draw() {
+      var Lv = LV_KIRIM[lv], s = "", x0 = 70, x1 = 630, sc = (x1 - x0) / Lv.L, E = evalK(Lv, reps), sp = spotsK(Lv), dig = Lv.mode === "D";
+      s += '<rect x="12" y="62" width="52" height="40" rx="8" fill="#0F3D2E"/>' + txt(38, 87, "Kirim", { size: 10, b: 1, c: "#fff" }) + '<rect x="636" y="62" width="56" height="40" rx="8" fill="#0F3D2E"/>' + txt(664, 87, "Terima", { size: 10, b: 1, c: "#fff" });
+      if (Lv.boleh) { s += '<rect x="' + (x0 + 26 * sc) + '" y="40" width="' + (13 * sc) + '" height="84" fill="#bae6fd" opacity=".6"/>' + txt(x0 + 32.5 * sc, 136, "laut", { size: 9, c: BLU }) + '<rect x="' + (x0 + 56 * sc) + '" y="40" width="' + (13 * sc) + '" height="84" fill="#bbf7d0" opacity=".7"/>' + txt(x0 + 62.5 * sc, 136, "hutan", { size: 9, c: HI }); }
+      var p = [0].concat(reps.slice().sort(function (a, b) { return a - b; })).concat([Lv.L]);
+      E.h.forEach(function (hh, i) {
+        var good = dig ? E.mata[i] >= 3 : true, c = dig ? (good ? HI : RED) : COP;
+        s += line(x0 + p[i] * sc, 82, x0 + p[i + 1] * sc, 82, c, 4) + txt(x0 + (p[i] + p[i + 1]) / 2 * sc, 70, hh + " km", { size: 9, b: 1, c: c });
+        if (dig) s += txt(x0 + (p[i] + p[i + 1]) / 2 * sc, 104, "mata " + f(E.mata[i], 1), { size: 8, c: c });
+        else s += txt(x0 + (p[i] + p[i + 1]) / 2 * sc, 104, "SNR " + f(10 * Math.log10(Math.exp(-2 * hh / AT13) / (SG13 * SG13)), 1) + " dB", { size: 8, c: c });
+      });
+      sp.forEach(function (x) { var on = reps.indexOf(x) >= 0; s += '<g data-k="' + x + '" style="cursor:pointer"><rect x="' + (x0 + x * sc - 11) + '" y="' + (on ? 70 : 76) + '" width="22" height="' + (on ? 24 : 12) + '" rx="4" fill="' + (on ? (dig ? BLU : COP) : "#fff") + '" stroke="' + (dig ? BLU : COP) + '" stroke-width="1.6"/>' + (on ? txt(x0 + x * sc, 86, "R", { size: 10, b: 1, c: "#fff" }) : "") + "</g>" + txt(x0 + x * sc, 150, String(x), { size: 8, c: MUT }); });
+      s += txt(x0, 150, "0", { size: 8, c: MUT }) + txt(x1, 150, Lv.L + " km", { size: 8, c: MUT });
+      if (anim >= 0) { var ax = x0 + Math.min(1, anim) * (x1 - x0); s += '<circle cx="' + ax + '" cy="82" r="7" fill="#fde047" stroke="' + INK + '"/>'; }
+      // hasil di penerima
+      if (hasil) {
+        if (dig) { var out = MSG.split("").map(function (ch, i) { var code = ch.charCodeAt(0), bad = false; for (var b = 0; b < 8; b++) if (hr13(i, b, lv + reps.length * 3) < hasil.ber) { code ^= 1 << b; bad = true; } return bad ? '<tspan fill="' + RED + '">' + String.fromCharCode(Math.max(33, Math.min(126, code))).replace(/[<&>]/g, "?") + "</tspan>" : ch; }).join(""); s += txt(350, 182, "Diterima: " + out, { size: 15, b: 1 }); }
+        else s += txt(350, 182, "Kualitas suara di penerima: " + f(hasil.snr, 1) + " dB" + (hasil.ok ? " (cukup)" : " (terlalu berdesis)"), { size: 13, b: 1, c: hasil.ok ? HI : RED });
+      }
+      el.querySelector(".c").innerHTML = s;
+      el.querySelector(".gm-lv").innerHTML = LV_KIRIM.map(function (x, i) { return '<span class="tag ' + (i === lv ? "ok" : bintang[i] ? "mid" : "") + '">L' + (i + 1) + (bintang[i] ? " " + "★".repeat(bintang[i]) : "") + "</span>"; }).join(" ") + " · <b>" + Lv.judul + "</b> · sinyal <b>" + (dig ? "DIGITAL" : "ANALOG") + "</b> · penguat ulang " + reps.length + "/" + Lv.bud;
+      var m = "";
+      if (hasil && anim < 0) m = hasil.ok ? "🎉 <b>Berhasil!</b> " + (dig ? "Tiap penguat ulang digital meregenerasi bit (derau dibuang). Peluang bit salah total ≈ " + (hasil.ber < 1e-6 ? "< 10⁻⁶" : hasil.ber.toExponential(1).replace(".", ",")) + "." : "Tetapi perhatikan: SNR analog tak bisa jauh di atas ±11 dB, karena tiap penguat ikut memperkuat derau. Kabel yang sama dengan sinyal digital bisa nyaris tanpa galat!") + " Penguat dipakai " + reps.length + " (minimum " + mins[lv] + ") → " + "★".repeat(bintang[lv]) + "☆".repeat(3 - bintang[lv]) : "❌ " + (dig ? "Ada ruas merah: sinyal melemah terlalu jauh sehingga “mata” < 3 dan bit salah. Perpendek ruas itu." : "SNR belum mencapai " + Lv.target + " dB. Atur jarak antar penguat.");
+      else m = dig ? "Klik kotak di kabel untuk memasang/melepas penguat ulang (R). Ruas digital aman bila “mata” ≥ 3 (sinyal ≥ 6× derau)." : "Target: SNR penerima ≥ " + Lv.target + " dB. Penguat analog memperkuat sinyal DAN derau, jadi derau tiap ruas menumpuk.";
+      el.querySelector(".gm-msg").innerHTML = m;
+      el.querySelector("[data-a=lanjut]").disabled = !(hasil && hasil.ok) || lv === LV_KIRIM.length - 1;
+    }
+    el.addEventListener("click", function (e) {
+      var k = e.target.closest("[data-k]"); if (k && anim < 0) { var x = +k.dataset.k, i = reps.indexOf(x), Lv = LV_KIRIM[lv]; if (i >= 0) reps.splice(i, 1); else if (reps.length < Lv.bud) reps.push(x); hasil = null; draw(); return; }
+      var a = e.target.closest("[data-a]"); if (!a) return;
+      if (a.dataset.a === "kirim" && anim < 0) { hasil = evalK(LV_KIRIM[lv], reps); if (hasil.ok) { var bs = reps.length <= mins[lv] ? 3 : reps.length <= mins[lv] + 1 ? 2 : 1; bintang[lv] = Math.max(bintang[lv] || 0, bs); } anim = 0; draw(); }
+      else if (a.dataset.a === "ulang") { mulai(); draw(); }
+      else if (a.dataset.a === "lanjut" && lv < LV_KIRIM.length - 1) { lv++; mulai(); draw(); }
+    });
+    mulai(); draw();
+    loop(el, function (dt) { if (anim >= 0) { anim += dt * 0.9; if (anim > 1) anim = -1; draw(); } });
+  };
+
   function mount(root) { $$(root, "[data-anim]").forEach(function (el) { var fn = A[el.dataset.anim]; if (fn && !el.dataset.on) { el.dataset.on = 1; el.classList.add("anim"); try { fn(el); } catch (e) { el.textContent = "(animasi gagal dimuat: " + e.message + ")"; } } }); }
   return { gambar: gambar, mount: mount, parseSpec: parseSpec, fR: fR };
 })();
